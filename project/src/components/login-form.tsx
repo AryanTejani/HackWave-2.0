@@ -81,7 +81,7 @@ export function LoginForm() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+            onClick={() => signIn("google", { callbackUrl: "/profile" })}
           >
             <FcGoogle className="h-8 w-8" />
             Login with Google
@@ -90,7 +90,7 @@ export function LoginForm() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signIn("github", { callbackUrl: "/dashboard" })}
+            onClick={() => signIn("github", { callbackUrl: "/profile" })}
           >
             <FaGithub className="h-8 w-8" />
             Login with Github
