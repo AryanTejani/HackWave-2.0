@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 export default function Home() {
   return (
     <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
+      <main className="flex flex-col gap-[32px] row-start-2 justify-items-center sm:items-start p-8">
         <Image
           className="dark:invert"
           src="/next.svg"
@@ -14,10 +14,16 @@ export default function Home() {
           height={38}
           priority
         />
-        <Link href="/dashboard">
-          <Button>Dashboard</Button>
-        </Link>
-      </main> 
+        <div className="flex flex-row justify-around ">
+          <Link href="/dashboard">
+            <Button className="mr-2">Dashboard</Button>
+          </Link>
+          <Link href="/login">
+            <Button>Login</Button>
+          </Link>
+        </div>
+
+      </main>
     </div>
   );
 }
