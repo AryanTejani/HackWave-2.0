@@ -1,6 +1,6 @@
 import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
-
+import { sendMail } from "@/lib/mailer";
 import { connectToDatabase } from "@/lib/mongo";
 import { User } from "@/models/User";
 
@@ -20,7 +20,11 @@ export const authOptions = {
   callbacks: {
     async signIn({ user, account }: { user: { name?: string | null; email?: string | null; image?: string | null }; account: { provider?: string } | null }) {
       await connectToDatabase();
-
+      await sendMail(
+        user.email!,
+        "Welcome to hackwave",
+        `Hello ${user.name},\n\nYou have successfully logged in!`
+      );
       const existingUser = await User.findOne({ email: user.email });
 
       if (!existingUser) {

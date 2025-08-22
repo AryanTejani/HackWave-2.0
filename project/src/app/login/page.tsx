@@ -2,7 +2,7 @@ import { LoginForm } from "@/components/login-form"
 
 export default function Page() {
   return (
-    <div className="flex h-screen w-full items-center justify-center px-4 ">
+    <div className=" w-full h-screen py-4 mt-20">
       <LoginForm />
     </div>
   )
