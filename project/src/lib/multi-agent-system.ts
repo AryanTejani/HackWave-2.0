@@ -2,9 +2,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { demoRiskAlerts } from './demo-data/risk-alerts';
 import { generateWhatIfSimulation } from './demo-data/what-if-scenarios';
+import { googleSearch } from './tools';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
+// --- Interfaces remain unchanged ---
 export interface RiskAlert {
   id: string;
   type: 'geopolitical' | 'weather' | 'port_closure' | 'trade_disruption' | 'labor_strike' | 'regulatory';
@@ -53,42 +55,65 @@ export interface StrategyRecommendation {
 
 /**
  * Agent 1: Risk Monitor
- * Detects vulnerabilities from news and trade data
+ * Detects vulnerabilities from real-time news and data for a given region, or globally.
  */
 export class RiskMonitorAgent {
   private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  async detectRisks(region: string = 'Red Sea'): Promise<RiskAlert[]> {
+  async detectRisks(region: string = 'Global'): Promise<RiskAlert[]> {
+    console.log(`Fetching live data for: ${region}`);
+    
+    // Adjust search queries based on whether a specific region is provided
+    const searchQueries = region === 'Global'
+      ? [
+          'global geopolitical tensions affecting supply chains',
+          'major weather events impacting global shipping routes',
+          'international shipping and port news'
+        ]
+      : [
+          `geopolitical tensions in ${region}`,
+          `weather alerts and forecasts for ${region}`,
+          `shipping and port news in ${region}`
+        ];
+
+    const [geopoliticalData, weatherData, newsData] = await googleSearch(searchQueries);
+
+    const geopoliticalNews = geopoliticalData.join('\n');
+    const weatherUpdates = weatherData.join('\n');
+    const shippingNews = newsData.join('\n');
+
     const prompt = `
-    You are a supply chain risk monitoring AI agent. Analyze current geopolitical and trade situations for the ${region} region.
-    
-    Based on recent events, generate realistic supply chain risk alerts. Consider:
-    - Geopolitical tensions
-    - Port closures or capacity issues
-    - Weather disruptions
-    - Trade route vulnerabilities
-    - Shipping delays
-    
-    Return a JSON array of risk alerts with this structure:
+    You are a supply chain risk monitoring AI agent. Analyze the following real-time data for the "${region}" region to generate realistic supply chain risk alerts.
+
+    **Live Geopolitical Tensions Data:**
+    ${geopoliticalNews}
+
+    **Live Weather Data:**
+    ${weatherUpdates}
+
+    **Live Shipping News Data:**
+    ${shippingNews}
+
+    Based ONLY on the live data provided, generate a JSON array of risk alerts.
+    If the data is insufficient, return an empty array. The structure should be:
     {
       "id": "unique_id",
       "type": "geopolitical|weather|port_closure|trade_disruption",
-      "severity": "low|medium|high|critical", 
-      "region": "affected region",
+      "severity": "low|medium|high|critical",
+      "region": "${region}",
       "title": "Alert title",
-      "description": "Detailed description",
+      "description": "Detailed description of the risk",
       "impact": "Expected impact on supply chains",
-      "sources": ["source1", "source2"]
+      "sources": ["A brief summary of the source, e.g., 'Recent news report'"]
     }
-    
-    Generate 3-4 realistic alerts for a company shipping electronics from China via Red Sea to Europe/US.
+
+    Generate 2-3 realistic alerts affecting global supply chains, with a focus on electronics shipping if possible.
     `;
 
     try {
       const result = await this.model.generateContent(prompt);
       const response = result.response.text();
       
-      // Extract JSON from response
       const jsonMatch = response.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         const alerts = JSON.parse(jsonMatch[0]);
@@ -98,34 +123,19 @@ export class RiskMonitorAgent {
         }));
       }
       
-      // Fallback with sample data
-      return this.getSampleRiskAlerts();
+      return this.getSampleRiskAlerts(region);
     } catch (error) {
-      console.error('Risk detection error:', error);
-      return this.getSampleRiskAlerts();
+      console.error('AI risk detection error:', error);
+      return this.getSampleRiskAlerts(region);
     }
   }
 
-  private getSampleRiskAlerts(): RiskAlert[] {
-    // Use demo data instead of hardcoded sample data
-    return demoRiskAlerts.map(alert => ({
-      id: alert.id,
-      type: alert.type,
-      severity: alert.severity,
-      region: alert.region,
-      title: alert.title,
-      description: alert.description,
-      impact: alert.impact,
-      detectedAt: alert.detectedAt,
-      sources: alert.sources
-    }));
+  private getSampleRiskAlerts(region: string): RiskAlert[] {
+    return demoRiskAlerts.map(alert => ({ ...alert, region }));
   }
 }
 
-/**
- * Agent 2: Impact Simulator  
- * Calculates disruption impact on shipments and costs
- */
+// ... (rest of the file remains the same)
 export class ImpactSimulatorAgent {
   private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
@@ -171,7 +181,6 @@ export class ImpactSimulatorAgent {
       const result = await this.model.generateContent(prompt);
       const response = result.response.text();
       
-      // Extract JSON from response
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const simulation = JSON.parse(jsonMatch[0]);
@@ -227,11 +236,6 @@ export class ImpactSimulatorAgent {
     };
   }
 }
-
-/**
- * Agent 3: Strategy Recommender
- * Suggests resilient alternatives and contingency plans
- */
 export class StrategyRecommenderAgent {
   private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
@@ -267,7 +271,6 @@ export class StrategyRecommenderAgent {
       const result = await this.model.generateContent(prompt);
       const response = result.response.text();
       
-      // Extract JSON from response
       const jsonMatch = response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]);
@@ -309,11 +312,6 @@ export class StrategyRecommenderAgent {
     };
   }
 }
-
-/**
- * Multi-Agent Orchestrator
- * Coordinates all three agents for comprehensive analysis
- */
 export class MultiAgentOrchestrator {
   private riskMonitor: RiskMonitorAgent;
   private impactSimulator: ImpactSimulatorAgent;
@@ -325,12 +323,11 @@ export class MultiAgentOrchestrator {
     this.strategyRecommender = new StrategyRecommenderAgent();
   }
 
-  async analyzeSupplyChain(region: string = 'Red Sea') {
+  async analyzeSupplyChain(region: string = 'Global') {
     try {
-      // Sample route data for electronics company
       const currentRoute: RouteInfo = {
         origin: 'Shanghai, China',
-        transit: ['Singapore', 'Suez Canal', 'Red Sea'],
+        transit: ['Singapore', 'Suez Canal', region],
         destination: 'Rotterdam, Netherlands',
         distance: 11500,
         duration: 28,
@@ -367,10 +364,8 @@ export class MultiAgentOrchestrator {
 
   async runWhatIfSimulation(scenario: string) {
     try {
-      // Use demo data for reliable simulation results
       const simulation = generateWhatIfSimulation(scenario);
       
-      // Optionally enhance with AI if available
       if (process.env.GEMINI_API_KEY) {
         try {
           const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
@@ -387,10 +382,9 @@ export class MultiAgentOrchestrator {
           const result = await model.generateContent(prompt);
           const aiEnhancement = result.response.text();
           
-          // Add AI enhancement to the simulation
           return {
             ...simulation,
-            aiEnhancement: aiEnhancement.substring(0, 500) + '...' // Limit length
+            aiEnhancement: aiEnhancement.substring(0, 500) + '...'
           };
         } catch (aiError) {
           console.log('AI enhancement failed, using demo data only:', aiError);
@@ -400,7 +394,6 @@ export class MultiAgentOrchestrator {
       return simulation;
     } catch (error) {
       console.error('What-if simulation error:', error);
-      // Fallback to basic simulation
       return generateWhatIfSimulation(scenario);
     }
   }
