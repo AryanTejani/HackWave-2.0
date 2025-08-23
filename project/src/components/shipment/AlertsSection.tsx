@@ -2,6 +2,7 @@
 'use client';
 
 import { Alert } from '@/lib/types';
+import { CompactExportButton } from '@/components/ui/export-button';
 import { AlertTriangle, Clock, TrendingUp, CheckCircle } from 'lucide-react';
 
 interface AlertsSectionProps {
@@ -51,19 +52,30 @@ export default function AlertsSection({ alerts, summary }: AlertsSectionProps) {
               Shipments requiring attention with AI-powered recommendations
             </p>
           </div>
-          <div className="flex items-center space-x-4 text-sm">
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-              High: {summary.high}
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-4 text-sm">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                High: {summary.high}
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
+                Medium: {summary.medium}
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+                Low: {summary.low}
+              </div>
             </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></div>
-              Medium: {summary.medium}
-            </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-              Low: {summary.low}
-            </div>
+            <CompactExportButton
+              data={{
+                shipments: [],
+                alerts,
+                stats: { total: 0, onTime: 0, delayed: 0, stuck: 0, delivered: 0 },
+                alertsSummary: summary
+              }}
+              filename="alerts-only"
+            />
           </div>
         </div>
       </div>

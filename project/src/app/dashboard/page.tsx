@@ -6,7 +6,9 @@ import { ShipmentWithProduct, Alert } from '@/lib/types';
 import ShipmentTable from '@/components/shipment/ShipmentTable';
 import AlertsSection from '@/components/shipment/AlertsSection';
 import AddShipmentForm from '@/components/shipment/AddShipmentForm';
-import { Plus, Truck, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import ExportButton from '@/components/ui/export-button';
+import ExportModal from '@/components/ui/export-modal';
+import { Plus, Truck, AlertTriangle, CheckCircle, Clock, FileSpreadsheet, Settings } from 'lucide-react';
 
 interface DashboardStats {
   total: number;
@@ -23,6 +25,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats>({ total: 0, onTime: 0, delayed: 0, stuck: 0, delivered: 0 });
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -92,13 +95,33 @@ export default function Dashboard() {
                 Monitor shipments and manage supply chain risks
               </p>
             </div>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Shipment
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Export Options
+              </button>
+              <ExportButton
+                data={{
+                  shipments,
+                  alerts,
+                  stats,
+                  alertsSummary
+                }}
+                filename="supply-chain-dashboard"
+                variant="outline"
+                size="md"
+              />
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Shipment
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -204,6 +227,19 @@ export default function Dashboard() {
           />
         </div>
       </div>
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        data={{
+          shipments,
+          alerts,
+          stats,
+          alertsSummary
+        }}
+        filename="supply-chain-dashboard"
+      />
     </div>
   );
 }

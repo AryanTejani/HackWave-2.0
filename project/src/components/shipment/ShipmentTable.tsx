@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { ShipmentWithProduct } from '@/lib/types';
+import { CompactExportButton } from '@/components/ui/export-button';
 import { Pencil, Trash2, Calendar, MapPin, Package } from 'lucide-react';
 
 interface ShipmentTableProps {
@@ -82,8 +83,30 @@ export default function ShipmentTable({ shipments, onUpdate }: ShipmentTableProp
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
+    <div>
+      <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
+        <div>
+          <h3 className="text-sm font-medium text-gray-900">Shipments ({shipments.length})</h3>
+          <p className="text-xs text-gray-500">Export shipment data to Excel</p>
+        </div>
+        <CompactExportButton
+          data={{
+            shipments,
+            alerts: [],
+            stats: {
+              total: shipments.length,
+              onTime: shipments.filter(s => s.status === 'On-Time').length,
+              delayed: shipments.filter(s => s.status === 'Delayed').length,
+              stuck: shipments.filter(s => s.status === 'Stuck').length,
+              delivered: shipments.filter(s => s.status === 'Delivered').length,
+            },
+            alertsSummary: { total: 0, high: 0, medium: 0, low: 0 }
+          }}
+          filename="shipments-only"
+        />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full">
         <thead className="bg-gray-50">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -201,6 +224,7 @@ export default function ShipmentTable({ shipments, onUpdate }: ShipmentTableProp
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

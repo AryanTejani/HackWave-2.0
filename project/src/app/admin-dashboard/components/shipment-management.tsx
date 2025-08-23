@@ -312,7 +312,7 @@ export function ShipmentManagement() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Value:</span>
-                          <span className="font-medium">{formatCurrency(shipment.totalValue)}</span>
+                          <span className="font-medium">{formatCurrency(shipment?.totalValue || 0)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Expected:</span>
@@ -323,7 +323,7 @@ export function ShipmentManagement() {
                         {shipment.currentLocation && (
                           <div className="flex justify-between">
                             <span className="text-gray-600 dark:text-gray-400">Location:</span>
-                            <span className="font-medium">{shipment.currentLocation}</span>
+                            <span className="font-medium">{shipment?.currentLocation}</span>
                           </div>
                         )}
                       </div>

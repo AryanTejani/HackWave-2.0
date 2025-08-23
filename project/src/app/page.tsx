@@ -4,7 +4,7 @@ import { Truck, Shield, BarChart3, AlertTriangle, ArrowRight } from 'lucide-reac
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screenbg-gradient-to-b from-background via-secondary/20 via-70% pb-28 pt-20">
    
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
