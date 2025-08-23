@@ -15,7 +15,7 @@ import { useSession } from "next-auth/react";
 
 const navigation = [
   { name: "Home", href: "/" },
-  { name: "admin", href: "/admin-dashboard" },
+  { name: "Admin", href: "/admin-dashboard" },
 ];
 
 const satisfy = Satisfy({

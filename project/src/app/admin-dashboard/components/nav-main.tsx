@@ -1,40 +1,50 @@
 "use client";
 
-import { type Icon } from "@tabler/icons-react";
+import * as React from "react";
+import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
+import { DashboardSection } from "../page";
 
-import {
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem
-} from "@/components/ui/sidebar";
-
-export function NavMain({
-  items
-}: {
-  items: {
+interface NavMainProps {
+  items: Array<{
     title: string;
-    url: string;
-    icon?: Icon;
-  }[];
-}) {
+    section?: DashboardSection;
+    url?: string;
+    icon: React.ComponentType<{ className?: string }>;
+    description?: string;
+  }>;
+  activeSection?: DashboardSection;
+  onSectionChange?: (section: DashboardSection) => void;
+}
+
+export function NavMain({ items, activeSection, onSectionChange }: NavMainProps) {
   return (
-    <SidebarGroup>
-      <SidebarGroupContent>
-        <SidebarGroupLabel>Home</SidebarGroupLabel>
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title}>
-                {item.icon && <item.icon />}
-                <span>{item.title}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
+    <SidebarMenu>
+      {items.map((item, index) => (
+        <SidebarMenuItem key={index}>
+          <SidebarMenuButton
+            asChild
+            isActive={activeSection === item.section}
+            className="data-[slot=sidebar-menu-button]:!p-3"
+          >
+            <button
+              onClick={() => item.section && onSectionChange?.(item.section)}
+              className="w-full text-left flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <item.icon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                  {item.title}
+                </div>
+                {item.description && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    {item.description}
+                  </div>
+                )}
+              </div>
+            </button>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      ))}
+    </SidebarMenu>
   );
 }
