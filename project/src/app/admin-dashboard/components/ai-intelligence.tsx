@@ -143,18 +143,38 @@ export function AIIntelligence() {
 
   const runWhatIfSimulation = async () => {
     if (!whatIfScenario.trim()) return;
+    
     try {
+      setLoadingAnalysis(true);
+      
       const response = await fetch('/api/what-if-simulation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scenario: whatIfScenario })
+        body: JSON.stringify({ scenario: whatIfScenario }),
+        credentials: 'include'
       });
-      if (response.ok) {
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Simulation failed');
+      }
+      
         const data = await response.json();
-        setSimulationResult(data.simulation);
+      
+      if (data.success && data.simulation) {
+        setSimulationResult({
+          ...data.simulation,
+          timestamp: new Date()
+        });
+        console.log('What-If simulation completed successfully:', data.simulation);
+      } else {
+        throw new Error('Invalid simulation response');
       }
     } catch (error) {
-      console.error('What-if simulation error:', error);
+      console.error('What-If simulation error:', error);
+      // You could add a toast notification here for better UX
+    } finally {
+      setLoadingAnalysis(false);
     }
   };
 
@@ -526,13 +546,135 @@ export function AIIntelligence() {
                                       <option key={scenario} value={scenario} />
                                   ))}
                               </datalist>
-                              <Button onClick={runWhatIfSimulation} disabled={!whatIfScenario}>
-                                  <Play className="h-4 w-4" />
+                              <Button onClick={runWhatIfSimulation} disabled={!whatIfScenario || loadingAnalysis}>
+                                  {loadingAnalysis ? (
+                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <Play className="h-4 w-4 mr-2" />
+                                  )}
+                                  {loadingAnalysis ? 'Running...' : 'Run Simulation'}
                               </Button>
                           </div>
                           {simulationResult && (
                               <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800">
-                                   {/* ... Your existing Simulation Result UI ... */}
+                                  <div className="space-y-4">
+                                      <div className="flex items-center justify-between">
+                                          <h3 className="text-lg font-semibold">Simulation Results</h3>
+                                          <Badge variant="outline">
+                                              {simulationResult.timestamp?.toLocaleString()}
+                                          </Badge>
+                                      </div>
+                                      
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <Card>
+                                              <CardHeader className="pb-2">
+                                                  <CardTitle className="text-sm">Impact Analysis</CardTitle>
+                                              </CardHeader>
+                                              <CardContent className="space-y-2">
+                                                  <div className="flex justify-between">
+                                                      <span className="text-sm">Delay Days:</span>
+                                                      <span className="font-medium">{simulationResult.impact?.delayDays || 0}</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                      <span className="text-sm">Additional Cost:</span>
+                                                      <span className="font-medium">{formatCurrency(simulationResult.impact?.additionalCost || 0)}</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                      <span className="text-sm">Affected Shipments:</span>
+                                                      <span className="font-medium">{simulationResult.impact?.affectedShipments || 0}</span>
+                                                  </div>
+                                                  <div className="flex justify-between">
+                                                      <span className="text-sm">Risk Level:</span>
+                                                      <Badge className={getSeverityColor(simulationResult.impact?.riskLevel || 'medium')}>
+                                                          {simulationResult.impact?.riskLevel || 'Medium'}
+                                                      </Badge>
+                                                  </div>
+                                              </CardContent>
+                                          </Card>
+                                          
+                                          <Card>
+                                              <CardHeader className="pb-2">
+                                                  <CardTitle className="text-sm">Recommendations</CardTitle>
+                                              </CardHeader>
+                                              <CardContent className="space-y-2">
+                                                  {simulationResult.recommendations?.immediate && (
+                                                      <div>
+                                                          <h4 className="text-sm font-medium text-red-700 mb-1">Immediate Actions</h4>
+                                                          <ul className="text-xs space-y-1">
+                                                              {simulationResult.recommendations.immediate.slice(0, 2).map((rec: any, index: number) => (
+                                                                  <li key={index} className="flex items-start">
+                                                                      <span className="w-1 h-1 bg-red-500 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
+                                                                      <span>{typeof rec === 'string' ? rec : rec.action || rec}</span>
+                                                                  </li>
+                                                              ))}
+                                                          </ul>
+                                                      </div>
+                                                  )}
+                                                  
+                                                  {simulationResult.recommendations?.shortTerm && (
+                                                      <div>
+                                                          <h4 className="text-sm font-medium text-blue-700 mb-1">Short-term</h4>
+                                                          <ul className="text-xs space-y-1">
+                                                              {simulationResult.recommendations.shortTerm.slice(0, 2).map((rec: any, index: number) => (
+                                                                  <li key={index} className="flex items-start">
+                                                                      <span className="w-1 h-1 bg-blue-500 rounded-full mt-1.5 mr-2 flex-shrink-0"></span>
+                                                                      <span>{typeof rec === 'string' ? rec : rec.action || rec}</span>
+                                                                  </li>
+                                                              ))}
+                                                          </ul>
+                                                      </div>
+                                                  )}
+                                              </CardContent>
+                                          </Card>
+                                      </div>
+                                      
+                                      {simulationResult.alternativeRoutes && simulationResult.alternativeRoutes.length > 0 && (
+                                          <Card>
+                                              <CardHeader className="pb-2">
+                                                  <CardTitle className="text-sm">Alternative Routes</CardTitle>
+                                              </CardHeader>
+                                              <CardContent>
+                                                  <div className="space-y-3">
+                                                      {simulationResult.alternativeRoutes.slice(0, 2).map((route: any, index: number) => (
+                                                          <div key={index} className="border rounded p-3">
+                                                              <div className="flex justify-between items-start mb-2">
+                                                                  <h5 className="font-medium text-sm">{route.name}</h5>
+                                                                  <div className="text-xs text-gray-500">
+                                                                      +{formatCurrency(route.costImpact)} | +{route.timeImpact} days
+                                                                  </div>
+                                                              </div>
+                                                              <p className="text-xs text-gray-600 mb-2">{route.description}</p>
+                                                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                                                  <div>
+                                                                      <span className="font-medium text-green-600">Pros:</span>
+                                                                      <ul className="mt-1">
+                                                                          {route.pros?.slice(0, 2).map((pro: string, i: number) => (
+                                                                              <li key={i} className="flex items-start">
+                                                                                  <span className="w-1 h-1 bg-green-500 rounded-full mt-1.5 mr-1 flex-shrink-0"></span>
+                                                                                  {pro}
+                                                                              </li>
+                                                                          ))}
+                                                                      </ul>
+                                                                  </div>
+                                                                  <div>
+                                                                      <span className="font-medium text-red-600">Cons:</span>
+                                                                      <ul className="mt-1">
+                                                                          {route.cons?.slice(0, 2).map((con: string, i: number) => (
+                                                                              <li key={i} className="flex items-start">
+                                                                                  <span className="w-1 h-1 bg-red-500 rounded-full mt-1.5 mr-1 flex-shrink-0"></span>
+                                                                                  {con}
+                                                                              </li>
+                                                                          ))}
+                                                                      </ul>
+                                                                  </div>
+                                                              </div>
+                                                          </div>
+                                                      ))}
+                                                  </div>
+                                              </CardContent>
+                                          </Card>
+                                      )}
+                                  </div>
                               </div>
                           )}
                       </div>

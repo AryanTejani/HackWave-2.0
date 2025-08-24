@@ -14,21 +14,32 @@ import {
   Clock, 
   TrendingUp, 
   DollarSign,
-  RefreshCw
+  RefreshCw,
+  Database
 } from 'lucide-react';
 
 interface DashboardStats {
   totalShipments: number;
   onTimeDeliveries: number;
   delayedShipments: number;
-  stuckShipments: number;
-  deliveredShipments: number;
+  inTransitShipments: number;
   totalValue: number;
   averageDeliveryTime: number;
   riskScore: number;
   totalProducts: number;
-  totalSuppliers: number;
-  totalAlerts: number;
+  highRiskSuppliers: number;
+  activeAlerts: number;
+  onTimeDeliveryRate: number;
+  averageOrderValue: number;
+  lastUpdated: string;
+}
+
+interface DataStatus {
+  hasData: boolean;
+  products: number;
+  suppliers: number;
+  shipments: number;
+  supplyChains: number;
 }
 
 export function DashboardOverview() {
@@ -37,85 +48,75 @@ export function DashboardOverview() {
     totalShipments: 0,
     onTimeDeliveries: 0,
     delayedShipments: 0,
-    stuckShipments: 0,
-    deliveredShipments: 0,
+    inTransitShipments: 0,
     totalValue: 0,
     averageDeliveryTime: 0,
     riskScore: 0,
     totalProducts: 0,
-    totalSuppliers: 0,
-    totalAlerts: 0
+    highRiskSuppliers: 0,
+    activeAlerts: 0,
+    onTimeDeliveryRate: 0,
+    averageOrderValue: 0,
+    lastUpdated: new Date().toISOString()
   });
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [dataStatus, setDataStatus] = useState<DataStatus | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
+  const checkDataStatus = async () => {
+    try {
+      const response = await fetch('/api/seed', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setDataStatus(result.data);
+        return result.data.hasData;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error checking data status:', error);
+      return false;
+    }
+  };
+
+  const checkDashboardStatus = async () => {
+    try {
+      const response = await fetch('/api/dashboard-status', {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setDebugInfo(result);
+        console.log('Dashboard Status:', result);
+      }
+    } catch (error) {
+      console.error('Error checking dashboard status:', error);
+    }
+  };
+
+
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       
-      // Fetch data from multiple API endpoints established in the 'main' branch
-      const [shipmentsRes, productsRes, suppliersRes, alertsRes] = await Promise.all([
-        fetch('/api/shipments'),
-        fetch('/api/products'),
-        fetch('/api/suppliers'),
-        fetch('/api/alerts')
-      ]);
-
-      let shipmentsData: any[] = [];
-      let productsData: any[] = [];
-      let suppliersData: any[] = [];
-      let alertsData: any[] = [];
-
-      if (shipmentsRes.ok) {
-        const result = await shipmentsRes.json();
-        shipmentsData = result.data || [];
-      }
-
-      if (productsRes.ok) {
-        const result = await productsRes.json();
-        productsData = result.data || [];
-      }
-
-      if (suppliersRes.ok) {
-        const result = await suppliersRes.json();
-        suppliersData = result.data || [];
-      }
-
-      if (alertsRes.ok) {
-        const result = await alertsRes.json();
-        alertsData = result.data || [];
-      }
-
-      // Calculate stats from the fetched data
-      const totalShipments = shipmentsData.length;
-      const onTimeDeliveries = shipmentsData.filter(s => s.status === 'On-Time').length;
-      const delayedShipments = shipmentsData.filter(s => s.status === 'Delayed').length;
-      const stuckShipments = shipmentsData.filter(s => s.status === 'Stuck').length;
-      const deliveredShipments = shipmentsData.filter(s => s.status === 'Delivered').length;
-      
-      const totalValue = shipmentsData.reduce((sum, s) => sum + (s.totalValue || 0), 0);
-      
-      // Simplified average delivery time for the dashboard
-      const averageDeliveryTime = totalShipments > 0 ? 18.5 : 0;
-      
-      // Calculate risk score based on alerts and stuck shipments
-      const riskScore = Math.min(10, (alertsData.length * 0.5) + (stuckShipments * 1.5));
-
-      setStats({
-        totalShipments,
-        onTimeDeliveries,
-        delayedShipments,
-        stuckShipments,
-        deliveredShipments,
-        totalValue,
-        averageDeliveryTime,
-        riskScore,
-        totalProducts: productsData.length,
-        totalSuppliers: suppliersData.length,
-        totalAlerts: alertsData.length
+      // Fetch data from the new unified dashboard stats API
+      const response = await fetch('/api/dashboard-stats', {
+        credentials: 'include'
       });
 
-      setLastUpdated(new Date());
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const dashboardStats = await response.json();
+      
+      setStats(dashboardStats);
+      setLastUpdated(new Date(dashboardStats.lastUpdated));
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -124,23 +125,86 @@ export function DashboardOverview() {
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    const initializeDashboard = async () => {
+      // First check if we have data
+      const hasData = await checkDataStatus();
+      
+      if (hasData) {
+        // Data exists, fetch dashboard stats
+        await fetchDashboardData();
+      } else {
+        // No data exists, just set loading to false to show empty state
+        setLoading(false);
+      }
+    };
+
+    initializeDashboard();
   }, []);
 
   const getRiskLevel = (score: number) => {
-    if (score <= 3) return { level: 'Low', color: 'bg-green-100 text-green-800' };
-    if (score <= 6) return { level: 'Medium', color: 'bg-yellow-100 text-yellow-800' };
+    if (score <= 30) return { level: 'Low', color: 'bg-green-100 text-green-800' };
+    if (score <= 70) return { level: 'Medium', color: 'bg-yellow-100 text-yellow-800' };
     return { level: 'High', color: 'bg-red-100 text-red-800' };
   };
 
   const riskLevel = getRiskLevel(stats.riskScore);
 
+
+
+  // Show loading state
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center space-x-2">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           <span className="text-gray-600">Loading dashboard...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state when no data
+  if (!dataStatus?.hasData) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+              Dashboard Overview
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              Welcome back, {session?.user?.name}
+            </p>
+          </div>
+          <div className="flex space-x-2">
+            <Button onClick={fetchDashboardData} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+            <Button onClick={checkDashboardStatus} variant="ghost" size="sm">
+              🔍 Debug
+            </Button>
+          </div>
+        </div>
+
+        {/* Empty State */}
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Database className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              No Data Available
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Upload your supply chain data to get started with real-time insights.
+            </p>
+            <Button asChild>
+              <a href="/admin-dashboard/data-onboarding">
+                <Database className="h-4 w-4 mr-2" />
+                Upload Data
+              </a>
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -157,11 +221,21 @@ export function DashboardOverview() {
           <p className="text-gray-600 dark:text-gray-400">
             Welcome back, {session?.user?.name}
           </p>
+          {dataStatus && (
+            <p className="text-xs text-gray-500 mt-1">
+              📊 Live data: {dataStatus.products} products, {dataStatus.suppliers} suppliers, {dataStatus.shipments} shipments
+            </p>
+          )}
         </div>
-        <Button onClick={fetchDashboardData} variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+                 <div className="flex space-x-2">
+           <Button onClick={fetchDashboardData} variant="outline" size="sm">
+             <RefreshCw className="h-4 w-4 mr-2" />
+             Refresh
+           </Button>
+           <Button onClick={checkDashboardStatus} variant="ghost" size="sm">
+             🔍 Debug
+           </Button>
+         </div>
       </div>
 
       {/* Stats Grid */}
@@ -255,26 +329,13 @@ export function DashboardOverview() {
             
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
-                <span className="text-sm">Stuck</span>
+                <Truck className="h-4 w-4 text-blue-600" />
+                <span className="text-sm">In Transit</span>
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium">{stats.stuckShipments}</span>
+                <span className="text-sm font-medium">{stats.inTransitShipments}</span>
                 <span className="text-xs text-muted-foreground">
-                  {stats.totalShipments > 0 ? ((stats.stuckShipments / stats.totalShipments) * 100).toFixed(1) : 0}%
-                </span>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Package className="h-4 w-4 text-gray-600" />
-                <span className="text-sm">Delivered</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium">{stats.deliveredShipments}</span>
-                <span className="text-xs text-muted-foreground">
-                  {stats.totalShipments > 0 ? ((stats.deliveredShipments / stats.totalShipments) * 100).toFixed(1) : 0}%
+                  {stats.totalShipments > 0 ? ((stats.inTransitShipments / stats.totalShipments) * 100).toFixed(1) : 0}%
                 </span>
               </div>
             </div>
@@ -291,11 +352,11 @@ export function DashboardOverview() {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm">On-Time Delivery Rate</span>
                 <span className="text-sm font-medium">
-                  {stats.totalShipments > 0 ? ((stats.onTimeDeliveries / stats.totalShipments) * 100).toFixed(1) : 0}%
+                  {stats.onTimeDeliveryRate}%
                 </span>
               </div>
               <Progress 
-                value={stats.totalShipments > 0 ? (stats.onTimeDeliveries / stats.totalShipments) * 100 : 0} 
+                value={stats.onTimeDeliveryRate} 
                 className="h-2" 
               />
             </div>
@@ -306,7 +367,7 @@ export function DashboardOverview() {
                 <Badge className={riskLevel.color}>{riskLevel.level}</Badge>
               </div>
               <Progress 
-                value={stats.riskScore * 10} 
+                value={stats.riskScore} 
                 className="h-2" 
               />
             </div>
@@ -314,26 +375,64 @@ export function DashboardOverview() {
             <div className="pt-4">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-muted-foreground">Suppliers:</span>
-                  <span className="ml-2 font-medium">{stats.totalSuppliers}</span>
+                  <span className="text-muted-foreground">High Risk Suppliers:</span>
+                  <span className="ml-2 font-medium">{stats.highRiskSuppliers}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Alerts:</span>
-                  <span className="ml-2 font-medium">{stats.totalAlerts}</span>
+                  <span className="text-muted-foreground">Active Alerts:</span>
+                  <span className="ml-2 font-medium">{stats.activeAlerts}</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Avg Delivery:</span>
                   <span className="ml-2 font-medium">{stats.averageDeliveryTime} days</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Total Value:</span>
-                  <span className="ml-2 font-medium">${(stats.totalValue / 1000000).toFixed(2)}M</span>
+                  <span className="text-muted-foreground">Avg Order Value:</span>
+                  <span className="ml-2 font-medium">${stats.averageOrderValue.toLocaleString()}</span>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Debug Info */}
+      {debugInfo && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="text-sm">🔍 Debug Information</CardTitle>
+            <CardDescription>Current data status and sample records</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="font-medium">Shipments:</span>
+                <span className="ml-2">{debugInfo.dataCounts.shipments}</span>
+              </div>
+              <div>
+                <span className="font-medium">Products:</span>
+                <span className="ml-2">{debugInfo.dataCounts.products}</span>
+              </div>
+              <div>
+                <span className="font-medium">Suppliers:</span>
+                <span className="ml-2">{debugInfo.dataCounts.suppliers}</span>
+              </div>
+              <div>
+                <span className="font-medium">Total:</span>
+                <span className="ml-2">{debugInfo.dataCounts.total}</span>
+              </div>
+            </div>
+            {debugInfo.sampleData.shipment && (
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs">
+                <div className="font-medium mb-2">Sample Shipment:</div>
+                <div>Status: {debugInfo.sampleData.shipment.status}</div>
+                <div>Product: {debugInfo.sampleData.shipment.product}</div>
+                <div>Value: ${debugInfo.sampleData.shipment.totalValue}</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Last Updated */}
       <div className="text-center text-sm text-muted-foreground">

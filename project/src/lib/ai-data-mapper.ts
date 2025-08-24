@@ -18,7 +18,7 @@ interface MappingResult {
 export async function mapAndSaveDataWithAI(
   userId: string, 
   dataType: string, 
-  jsonData: any[]
+  jsonData: any[] 
 ): Promise<MappingResult> {
   try {
     console.log(`Starting AI mapping for ${dataType} with ${jsonData.length} records`);
