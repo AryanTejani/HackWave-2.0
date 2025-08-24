@@ -12,6 +12,7 @@ interface ShipmentFormData {
   destination: string;
   expectedDelivery: string;
   trackingNumber: string;
+  status: 'On-Time' | 'Delayed' | 'Stuck' | 'Delivered';
   quantity: number;
   totalValue: number;
   shippingMethod: 'Air' | 'Sea' | 'Land' | 'Express';
@@ -38,6 +39,7 @@ const initialFormData: ShipmentFormData = {
   destination: '',
   expectedDelivery: '',
   trackingNumber: '',
+  status: 'On-Time',
   quantity: 1,
   totalValue: 0,
   shippingMethod: 'Sea',
@@ -91,6 +93,10 @@ export default function ShipmentForm() {
     };
 
     fetchProducts();
+    
+    // Log initial form data to verify status is set
+    console.log('Initial form data:', initialFormData);
+    console.log('Current form data:', formData);
   }, []);
 
   // Handle form field changes
@@ -130,14 +136,36 @@ export default function ShipmentForm() {
     }
   }, [formData.productId, formData.quantity, products]);
 
+  // Ensure status is always set
+  useEffect(() => {
+    if (!formData.status || formData.status.trim() === '') {
+      setFormData(prev => ({ ...prev, status: 'On-Time' }));
+    }
+  }, [formData.status]);
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Ensure status is never empty
+    if (!formData.status || formData.status.trim() === '') {
+      setFormData(prev => ({ ...prev, status: 'On-Time' }));
+    }
+    
+    // Final validation with the corrected status
+    const finalFormData = {
+      ...formData,
+      status: formData.status || 'On-Time'
+    };
+    
+    console.log('Final form data to submit:', finalFormData);
+    
     setIsSubmitting(true);
     setSubmitStatus('idle');
     setErrorMessage('');
 
     try {
+      console.log('Submitting form data:', finalFormData);
       const response = await fetch('/api/shipments', {
         method: 'POST',
         headers: {
@@ -346,6 +374,24 @@ export default function ShipmentForm() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter tracking number"
                 />
+              </div>
+              
+              <div>
+                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
+                  Status *
+                </label>
+                <select
+                  id="status"
+                  value={formData.status}
+                  onChange={(e) => handleInputChange('status', e.target.value as 'On-Time' | 'Delayed' | 'Stuck' | 'Delivered')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="On-Time">On-Time</option>
+                  <option value="Delayed">Delayed</option>
+                  <option value="Stuck">Stuck</option>
+                  <option value="Delivered">Delivered</option>
+                </select>
               </div>
             </div>
           </div>

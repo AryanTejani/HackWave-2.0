@@ -1,8 +1,8 @@
 import { connectToDatabase } from '@/lib/mongo';
-import Product from '@/models/Product';
-import Shipment from '@/models/Shipment';
-import Supplier from '@/models/Supplier';
-import SupplyChain from '@/models/SupplyChain';
+import { Product } from '@/models/Product';
+import { Shipment } from '@/models/Shipment';
+import { Supplier } from '@/models/Supplier';
+import { SupplyChain } from '@/models/SupplyChain';
 import { demoProducts } from './products';
 import { demoShipments } from './shipments';
 import { demoSuppliers } from './suppliers';

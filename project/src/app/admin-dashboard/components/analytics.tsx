@@ -8,7 +8,7 @@ import {
   DollarSign,
   Calendar,
   Download,
-  Filter,
+  Clock,
   Activity,
   AlertTriangle
 } from 'lucide-react';

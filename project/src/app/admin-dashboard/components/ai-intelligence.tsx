@@ -30,7 +30,7 @@ import { NewsItem, GlobalCondition, SupplyChainAlert, SupplierInfo } from '@/lib
 interface AIAnalysis {
   risks: any[];
   simulation: any;
-  strategies: any;
+  recommendations: any;
   companyProfile: any;
   analysisTimestamp: string;
 }
@@ -195,6 +195,24 @@ export function AIIntelligence() {
     }
   };
 
+  const getImpactColor = (impact: string) => {
+    switch (impact) {
+      case 'high': return 'text-red-600 dark:text-red-400';
+      case 'medium': return 'text-orange-600 dark:text-orange-400';
+      case 'low': return 'text-blue-600 dark:text-blue-400';
+      default: return 'text-gray-600 dark:text-gray-400';
+    }
+  };
+
+    const getInsightIcon = (type: string) => {
+    switch (type) {
+      case 'risk': return <AlertTriangle className="h-4 w-4" />;
+      case 'optimization': return <TrendingDown className="h-4 w-4" />;
+      case 'efficiency': return <Zap className="h-4 w-4" />;
+      default: return <Lightbulb className="h-4 w-4" />;
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -202,24 +220,6 @@ export function AIIntelligence() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
-  };
-  
-  const getImpactColor = (impact: string) => {
-    switch (impact) {
-      case 'high': return 'text-red-600 dark:text-red-400';
-      case 'medium': return 'text-yellow-600 dark:text-yellow-400';
-      case 'low': return 'text-green-600 dark:text-green-400';
-      default: return 'text-gray-600 dark:text-gray-400';
-    }
-  };
-
-  const getInsightIcon = (type: string) => {
-    switch (type) {
-      case 'optimization': return <BarChart3 className="h-4 w-4" />;
-      case 'risk': return <AlertTriangle className="h-4 w-4" />;
-      case 'efficiency': return <Settings className="h-4 w-4" />;
-      default: return <Lightbulb className="h-4 w-4" />;
-    }
   };
 
   return (
@@ -336,19 +336,168 @@ export function AIIntelligence() {
           
           <TabsContent value="risks" className="mt-6">
               <Card>
-                  {/* ... Your existing Risk Analysis UI ... */}
+                  <CardHeader>
+                      <CardTitle className="flex items-center">
+                          <AlertTriangle className="h-4 w-4 mr-2" />
+                          Risk Analysis
+                      </CardTitle>
+                      <CardDescription>
+                          AI-detected risks based on your supply chain data and global conditions
+                      </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {analysis?.risks && analysis.risks.length > 0 ? (
+                          <div className="space-y-4">
+                              {analysis.risks.map((risk: any, index: number) => (
+                                  <div key={risk.id || index} className="border rounded-lg p-4">
+                                      <div className="flex items-start justify-between mb-2">
+                                          <h4 className="font-semibold text-gray-900 dark:text-white">{risk.title}</h4>
+                                          <Badge className={getSeverityColor(risk.severity)}>
+                                              {risk.severity}
+                                          </Badge>
+                                      </div>
+                                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{risk.description}</p>
+                                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                                          <span className="flex items-center">
+                                              <MapPin className="h-3 w-3 mr-1" />
+                                              {risk.region}
+                                          </span>
+                                          <span className="flex items-center">
+                                              <AlertTriangle className="h-3 w-3 mr-1" />
+                                              {risk.type}
+                                          </span>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                      ) : (
+                          <div className="text-center py-8 text-gray-500">
+                              No risks detected. Your supply chain appears to be operating normally.
+                          </div>
+                      )}
+                  </CardContent>
               </Card>
           </TabsContent>
           
           <TabsContent value="impact" className="mt-6">
               <Card>
-                   {/* ... Your existing Impact Simulation UI ... */}
+                  <CardHeader>
+                      <CardTitle className="flex items-center">
+                          <TrendingDown className="h-4 w-4 mr-2" />
+                          Impact Simulation
+                      </CardTitle>
+                      <CardDescription>
+                          Simulated impact of detected risks on your supply chain
+                      </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {analysis?.simulation ? (
+                          <div className="space-y-4">
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div className="text-center p-4 border rounded-lg">
+                                      <div className="text-2xl font-bold text-red-600">{analysis.simulation.disruptionImpact.delayDays}</div>
+                                      <div className="text-sm text-gray-600">Days Delay</div>
+                                  </div>
+                                  <div className="text-center p-4 border rounded-lg">
+                                      <div className="text-2xl font-bold text-orange-600">${analysis.simulation.disruptionImpact.additionalCost.toLocaleString()}</div>
+                                      <div className="text-sm text-gray-600">Additional Cost</div>
+                                  </div>
+                                  <div className="text-center p-4 border rounded-lg">
+                                      <div className="text-2xl font-bold text-blue-600">{analysis.simulation.disruptionImpact.affectedShipments}</div>
+                                      <div className="text-sm text-gray-600">Affected Shipments</div>
+                                  </div>
+                              </div>
+                          </div>
+                      ) : (
+                          <div className="text-center py-8 text-gray-500">
+                              No impact simulation available.
+                          </div>
+                      )}
+                  </CardContent>
               </Card>
           </TabsContent>
           
           <TabsContent value="strategies" className="mt-6">
               <Card>
-                   {/* ... Your existing Strategies UI ... */}
+                  <CardHeader>
+                      <CardTitle className="flex items-center">
+                          <Lightbulb className="h-4 w-4 mr-2" />
+                          Strategic Recommendations
+                      </CardTitle>
+                      <CardDescription>
+                          AI-generated strategies to mitigate risks and optimize your supply chain
+                      </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                                             {analysis?.recommendations ? (
+                           <div className="space-y-6">
+                               {/* Handle different recommendation formats */}
+                               {Array.isArray(analysis.recommendations.immediate) ? (
+                                   <div>
+                                       <h4 className="font-semibold text-green-700 mb-2">Immediate Actions</h4>
+                                       <ul className="space-y-1">
+                                           {analysis.recommendations.immediate.map((rec: any, index: number) => (
+                                               <li key={index} className="flex items-start">
+                                                   <span className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                                                   <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                       {typeof rec === 'string' ? rec : rec.recommendation || rec.description || JSON.stringify(rec)}
+                                                   </span>
+                                               </li>
+                                           ))}
+                                       </ul>
+                                   </div>
+                               ) : null}
+                               
+                               {Array.isArray(analysis.recommendations.shortTerm) ? (
+                                   <div>
+                                       <h4 className="font-semibold text-blue-700 mb-2">Short-term Strategies</h4>
+                                       <ul className="space-y-1">
+                                           {analysis.recommendations.shortTerm.map((rec: any, index: number) => (
+                                               <li key={index} className="flex items-start">
+                                                   <span className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                                                   <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                       {typeof rec === 'string' ? rec : rec.recommendation || rec.description || JSON.stringify(rec)}
+                                                   </span>
+                                               </li>
+                                           ))}
+                                       </ul>
+                                   </div>
+                               ) : null}
+                               
+                               {Array.isArray(analysis.recommendations.longTerm) ? (
+                                   <div>
+                                       <h4 className="font-semibold text-purple-700 mb-2">Long-term Planning</h4>
+                                       <ul className="space-y-1">
+                                           {analysis.recommendations.longTerm.map((rec: any, index: number) => (
+                                               <li key={index} className="flex items-start">
+                                                   <span className="w-2 h-2 bg-purple-500 rounded-full mt-2 mr-2 flex-shrink-0"></span>
+                                                   <span className="text-sm text-gray-700 dark:text-gray-300">
+                                                       {typeof rec === 'string' ? rec : rec.recommendation || rec.description || JSON.stringify(rec)}
+                                                   </span>
+                                               </li>
+                                           ))}
+                                       </ul>
+                                   </div>
+                               ) : null}
+                               
+                               {/* Fallback for unexpected format */}
+                               {!Array.isArray(analysis.recommendations.immediate) && 
+                                !Array.isArray(analysis.recommendations.shortTerm) && 
+                                !Array.isArray(analysis.recommendations.longTerm) && (
+                                   <div className="text-center py-8 text-gray-500">
+                                       <p>Unexpected recommendations format. Raw data:</p>
+                                       <pre className="text-xs mt-2 p-2 bg-gray-100 dark:bg-gray-800 rounded">
+                                           {JSON.stringify(analysis.recommendations, null, 2)}
+                                       </pre>
+                                   </div>
+                               )}
+                           </div>
+                       ) : (
+                           <div className="text-center py-8 text-gray-500">
+                               No strategic recommendations available.
+                           </div>
+                       )}
+                  </CardContent>
               </Card>
           </TabsContent>
           

@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Validate required fields
-    const requiredFields = ['trackingNumber', 'productId', 'origin', 'destination', 'status'];
+    const requiredFields = ['productId', 'origin', 'destination', 'status', 'expectedDelivery', 'quantity', 'totalValue', 'shippingMethod', 'carrier'];
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json(
@@ -66,14 +66,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate productId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(body.productId)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid product ID format' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status is one of the allowed values
+    const allowedStatuses = ['On-Time', 'Delayed', 'Stuck', 'Delivered'];
+    if (!allowedStatuses.includes(body.status)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid status. Must be one of: ${allowedStatuses.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // Validate shipping method is one of the allowed values
+    const allowedShippingMethods = ['Air', 'Sea', 'Land', 'Express'];
+    if (!allowedShippingMethods.includes(body.shippingMethod)) {
+      return NextResponse.json(
+        { success: false, error: `Invalid shipping method. Must be one of: ${allowedShippingMethods.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     // Create shipment with user ID
     const shipment = new Shipment({
       ...body,
       userId: new mongoose.Types.ObjectId(userId),
-      trackingNumber: body.trackingNumber.trim(),
+      productId: new mongoose.Types.ObjectId(body.productId),
+      trackingNumber: body.trackingNumber?.trim() || '',
       origin: body.origin.trim(),
       destination: body.destination.trim(),
       status: body.status,
+      expectedDelivery: new Date(body.expectedDelivery),
+      quantity: body.quantity,
+      totalValue: body.totalValue,
+      shippingMethod: body.shippingMethod,
+      carrier: body.carrier.trim(),
+      currentLocation: body.currentLocation || '',
+      estimatedArrival: body.estimatedArrival ? new Date(body.estimatedArrival) : undefined,
       riskFactors: body.riskFactors || []
     });
 

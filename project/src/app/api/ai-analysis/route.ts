@@ -19,11 +19,11 @@ export async function POST(request: NextRequest) {
     // The flexible 'analysisType' logic from 'main' is preserved and updated
     if (analysisType === 'full') {
       // The orchestrator now handles its own data fetching internally
-      analysis = await orchestrator.analyzeSupplyChain();
+      analysis = await orchestrator.analyzeSupplyChain(userId);
     } else if (analysisType === 'risks') {
       // To get just the risks, we run the full analysis and extract the relevant part.
       // This is efficient as it reuses the main analysis flow.
-      const fullAnalysis = await orchestrator.analyzeSupplyChain();
+      const fullAnalysis = await orchestrator.analyzeSupplyChain(userId);
       analysis = {
         risks: fullAnalysis.risks,
         analysisTimestamp: fullAnalysis.analysisTimestamp,
@@ -34,8 +34,8 @@ export async function POST(request: NextRequest) {
       };
     } else if (analysisType === 'recommendations') {
       // Similarly, we run the full analysis to get the context for recommendations.
-      const fullAnalysis = await orchestrator.analyzeSupplyChain();
-      const recommendations = fullAnalysis.strategies;
+      const fullAnalysis = await orchestrator.analyzeSupplyChain(userId);
+      const recommendations = fullAnalysis.recommendations;
       analysis = {
         recommendations,
         analysisTimestamp: fullAnalysis.analysisTimestamp,

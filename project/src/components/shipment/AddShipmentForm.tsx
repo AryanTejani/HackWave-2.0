@@ -25,6 +25,11 @@ export default function AddShipmentForm({ onSuccess, onCancel }: AddShipmentForm
     destination: '',
     expectedDelivery: '',
     trackingNumber: '',
+    status: 'On-Time',
+    quantity: 1,
+    totalValue: 0,
+    shippingMethod: 'Air',
+    carrier: '',
   });
   const [newProduct, setNewProduct] = useState({
     name: '',
@@ -35,6 +40,18 @@ export default function AddShipmentForm({ onSuccess, onCancel }: AddShipmentForm
 
   useEffect(() => {
     fetchProducts();
+  }, []);
+
+  // Ensure status is always set
+  useEffect(() => {
+    if (!formData.status || formData.status.trim() === '') {
+      setFormData(prev => ({ ...prev, status: 'On-Time' }));
+    }
+  }, [formData.status]);
+
+  // Set initial status on mount
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, status: 'On-Time' }));
   }, []);
 
   const fetchProducts = async () => {
@@ -52,17 +69,32 @@ export default function AddShipmentForm({ onSuccess, onCancel }: AddShipmentForm
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.productId || !formData.origin || !formData.destination || !formData.expectedDelivery) {
+    
+    // Ensure status is never empty
+    if (!formData.status || formData.status.trim() === '') {
+      setFormData(prev => ({ ...prev, status: 'On-Time' }));
+    }
+    
+    // Final validation with the corrected status
+    const finalFormData = {
+      ...formData,
+      status: formData.status || 'On-Time'
+    };
+    
+    if (!finalFormData.productId || !finalFormData.origin || !finalFormData.destination || !finalFormData.expectedDelivery || !finalFormData.status || !finalFormData.trackingNumber || !finalFormData.quantity || !finalFormData.totalValue || !finalFormData.shippingMethod || !finalFormData.carrier) {
       alert('Please fill in all required fields');
       return;
     }
+    
+    // Use the final form data for submission
+    const dataToSend = finalFormData;
 
     setLoading(true);
     try {
       const response = await fetch('/api/shipments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(dataToSend),
       });
 
       if (response.ok) {
@@ -73,6 +105,11 @@ export default function AddShipmentForm({ onSuccess, onCancel }: AddShipmentForm
           destination: '',
           expectedDelivery: '',
           trackingNumber: '',
+          status: 'On-Time',
+          quantity: 1,
+          totalValue: 0,
+          shippingMethod: 'Air',
+          carrier: '',
         });
       } else {
         const error = await response.json();
@@ -253,16 +290,95 @@ export default function AddShipmentForm({ onSuccess, onCancel }: AddShipmentForm
           />
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Status *
+          </label>
+          <select
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+            defaultValue="On-Time"
+          >
+            <option value="On-Time">On-Time</option>
+            <option value="Delayed">Delayed</option>
+            <option value="Stuck">Stuck</option>
+            <option value="Delivered">Delivered</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Quantity *
+          </label>
+          <input
+            type="number"
+            min="1"
+            value={formData.quantity}
+            onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Total Value ($) *
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={formData.totalValue}
+            onChange={(e) => setFormData({ ...formData, totalValue: parseFloat(e.target.value) || 0 })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Shipping Method *
+          </label>
+          <select
+            value={formData.shippingMethod}
+            onChange={(e) => setFormData({ ...formData, shippingMethod: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            required
+          >
+            <option value="Air">Air</option>
+            <option value="Sea">Sea</option>
+            <option value="Land">Land</option>
+            <option value="Express">Express</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Carrier *
+          </label>
+          <input
+            type="text"
+            value={formData.carrier}
+            onChange={(e) => setFormData({ ...formData, carrier: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., UPS Airlines"
+            required
+          />
+        </div>
+
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tracking Number
+            Tracking Number *
           </label>
           <input
             type="text"
             value={formData.trackingNumber}
             onChange={(e) => setFormData({ ...formData, trackingNumber: e.target.value })}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Optional tracking number"
+            placeholder="Enter tracking number"
+            required
           />
         </div>
 
