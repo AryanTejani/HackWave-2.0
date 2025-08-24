@@ -1,49 +1,25 @@
-// app/api/risk-monitor/route.ts
+// src/app/api/risk-monitor/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { RiskMonitorAgent } from '@/lib/multi-agent-system';
-
-// In-memory cache to store results and prevent rate-limiting
-const cache = new Map();
-const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+// The Orchestrator is the only thing we need to import now
+import { MultiAgentOrchestrator } from '@/lib/multi-agent-system';
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    // The region is now optional. If not provided, it will be null.
-    const region = searchParams.get('region');
-    const cacheKey = `risk-monitor-${region || 'global'}`;
+    console.log("Kicking off multi-agent supply chain analysis...");
+    
+    const orchestrator = new MultiAgentOrchestrator();
+    // The orchestrator now handles fetching and passing data to the agent
+    const analysisResult = await orchestrator.analyzeSupplyChain();
 
-    if (cache.has(cacheKey)) {
-      const cachedData = cache.get(cacheKey);
-      if (Date.now() - cachedData.timestamp < CACHE_DURATION_MS) {
-        console.log(`Serving cached data for: ${region || 'Global'}`);
-        return NextResponse.json(cachedData.data);
-      }
-    }
-
-    console.log(`Running AI analysis for: ${region || 'Global'}`);
-    const riskAgent = new RiskMonitorAgent();
-    // If region is null, the agent's default 'Global' parameter will be used.
-    const risks = await riskAgent.detectRisks(region || undefined);
-
-    const responseData = {
+    return NextResponse.json({
       success: true,
-      risks,
-      region: region || 'Global', // Respond with "Global" if no region was specified
-      detectedAt: new Date(),
-    };
-
-    cache.set(cacheKey, {
-      data: responseData,
-      timestamp: Date.now(),
+      data: analysisResult
     });
 
-    return NextResponse.json(responseData);
-
   } catch (error) {
-    console.error('Risk monitoring error:', error);
+    console.error('Risk monitoring API error:', error);
     return NextResponse.json(
-      { success: false, error: 'Risk monitoring failed' },
+      { success: false, error: 'Multi-agent analysis failed' },
       { status: 500 }
     );
   }

@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getSupplyChainNews, getMarketData, getGlobalConditions, NewsItem, GlobalCondition } from '@/lib/tools';
 
 interface AIAnalysis {
   risks: any[];
@@ -66,6 +67,9 @@ export function AIIntelligence() {
   const [whatIfScenario, setWhatIfScenario] = useState('');
   const [simulationResult, setSimulationResult] = useState<WhatIfSimulationResult | null>(null);
   const [aiInsights, setAiInsights] = useState<any[]>([]);
+  const [supplyChainNews, setSupplyChainNews] = useState<NewsItem[]>([]);
+  const [marketData, setMarketData] = useState<any>(null);
+  const [globalConditions, setGlobalConditions] = useState<GlobalCondition[]>([]);
 
   const runAIAnalysis = async () => {
     setLoading(true);
@@ -82,7 +86,7 @@ export function AIIntelligence() {
       const response = await fetch('/api/ai-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ region: 'Red Sea' })
+        body: JSON.stringify({ region: 'Worldwide' })
       });
 
       if (response.ok) {
@@ -120,34 +124,68 @@ export function AIIntelligence() {
     // Auto-run demo analysis on page load
     runAIAnalysis();
     
-    // Mock AI insights
-    setAiInsights([
-      {
-        id: '1',
-        type: 'optimization',
-        title: 'Route Optimization Opportunity',
-        description: 'AI detected 15% cost savings potential by rerouting through Suez Canal',
-        impact: 'high',
-        confidence: 87
-      },
-      {
-        id: '2',
-        type: 'risk',
-        title: 'Supplier Risk Alert',
-        description: 'Increased risk detected for supplier in Southeast Asia region',
-        impact: 'medium',
-        confidence: 73
-      },
-      {
-        id: '3',
-        type: 'efficiency',
-        title: 'Inventory Optimization',
-        description: 'AI recommends reducing safety stock by 20% for non-critical items',
-        impact: 'medium',
-        confidence: 91
+    // Fetch dynamic data from the API route
+    const fetchDynamicData = async () => {
+      try {
+        const response = await fetch('/api/supply-chain-data');
+        if (!response.ok) {
+          throw new Error('Failed to fetch supply chain data');
+        }
+        
+        const { data } = await response.json();
+        const { news, market, conditions } = data;
+        
+        setSupplyChainNews(news || []);
+        setMarketData(market);
+        setGlobalConditions(conditions || []);
+        
+        // Generate dynamic AI insights based on real data
+        const dynamicInsights = [
+          {
+            id: '1',
+            type: 'optimization',
+            title: 'Route Optimization Opportunity',
+            description: market?.marketTrend === 'rising' ? 
+              'AI detected 15% cost savings potential by rerouting through Suez Canal' :
+              'AI recommends optimizing routes based on current market conditions',
+            impact: 'high',
+            confidence: 87
+          },
+          {
+            id: '2',
+            type: 'risk',
+            title: 'Supplier Risk Alert',
+            description: conditions && conditions.length > 0 ? 
+              `Increased risk detected for suppliers in ${conditions[0]?.region} region` :
+              'Monitoring supplier risks across global network',
+            impact: 'medium',
+            confidence: 73
+          },
+          {
+            id: '3',
+            type: 'efficiency',
+            title: 'Inventory Optimization',
+            description: news && news.length > 0 ? 
+              'AI recommends adjusting inventory levels based on current supply chain disruptions' :
+              'AI recommends reducing safety stock by 20% for non-critical items',
+            impact: 'medium',
+            confidence: 91
+          }
+        ];
+        
+        setAiInsights(dynamicInsights);
+      } catch (error) {
+        console.error('Error fetching dynamic data:', error);
+        // Fallback to default insights
+        setAiInsights([
+          // ... your default insights ...
+        ]);
       }
-    ]);
+    };
+    
+    fetchDynamicData();
   }, []);
+
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {

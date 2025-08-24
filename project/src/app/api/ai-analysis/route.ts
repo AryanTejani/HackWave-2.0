@@ -1,14 +1,22 @@
 // app/api/ai-analysis/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { MultiAgentOrchestrator } from '@/lib/multi-agent-system';
+import { getGlobalConditions, getSupplyChainNews } from '@/lib/tools';
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { region = 'Red Sea', analysisType = 'full' } = body;
+    const { region = 'Worldwide', analysisType = 'full' } = body;
+
+    // Fetch data here
+    const [conditions, news] = await Promise.all([
+      getGlobalConditions(),
+      getSupplyChainNews()
+    ]);
 
     const orchestrator = new MultiAgentOrchestrator();
-    const analysis = await orchestrator.analyzeSupplyChain(region);
+    // Pass data to the orchestrator
+    const analysis = await orchestrator.analyzeSupplyChainWithData(conditions, news);
 
     return NextResponse.json({
       success: true,
@@ -27,24 +35,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-export async function GET() {
-  try {
-    // Quick demo analysis for testing
-    const orchestrator = new MultiAgentOrchestrator();
-    const analysis = await orchestrator.analyzeSupplyChain('Red Sea');
-
-    return NextResponse.json({
-      success: true,
-      analysis,
-      demo: true,
-    });
-  } catch (error) {
-    console.error('Demo analysis error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Demo analysis failed' },
-      { status: 500 }
-    );
-  }
-}
-

@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getSupplierIntelligence, SupplierInfo } from '@/lib/tools';
 
 interface Product {
   _id: string;
@@ -43,7 +44,7 @@ interface Supplier {
 
 export function ProductManagement() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -59,37 +60,10 @@ export function ProductManagement() {
           setProducts(productsData);
         }
 
-        // Mock suppliers data
-        const mockSuppliers: Supplier[] = [
-          {
-            id: '1',
-            name: 'Foxconn Technology Group',
-            location: 'Taiwan',
-            rating: 4.8,
-            products: 15,
-            status: 'active',
-            riskLevel: 'low'
-          },
-          {
-            id: '2',
-            name: 'Samsung Electronics',
-            location: 'South Korea',
-            rating: 4.6,
-            products: 12,
-            status: 'active',
-            riskLevel: 'medium'
-          },
-          {
-            id: '3',
-            name: 'TSMC',
-            location: 'Taiwan',
-            rating: 4.9,
-            products: 8,
-            status: 'active',
-            riskLevel: 'low'
-          }
-        ];
-        setSuppliers(mockSuppliers);
+        // Fetch dynamic supplier intelligence
+        const supplierNames = ['Foxconn Technology Group', 'Samsung Electronics', 'TSMC', 'Intel Corporation', 'Qualcomm'];
+        const dynamicSuppliers = await getSupplierIntelligence(supplierNames);
+        setSuppliers(dynamicSuppliers);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {

@@ -19,7 +19,7 @@ export const demoRiskAlerts: DemoRiskAlert[] = [
     id: 'alert_001',
     type: 'geopolitical',
     severity: 'high',
-    region: 'Red Sea',
+    region: 'India',
     title: 'Red Sea Shipping Disruptions Escalate',
     description: 'Increased tensions in the Red Sea region causing major shipping companies to reroute vessels around the Cape of Good Hope.',
     impact: 'Potential 7-14 day delays, 15-25% cost increase for affected routes',

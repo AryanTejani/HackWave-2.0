@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { getSupplyChainAlerts, getGlobalConditions, SupplyChainAlert, GlobalCondition } from '@/lib/tools';
 
 interface RiskAlert {
   id: string;
@@ -30,7 +31,8 @@ interface RiskAlert {
 }
 
 export function RiskManagement() {
-  const [riskAlerts, setRiskAlerts] = useState<RiskAlert[]>([]);
+  const [riskAlerts, setRiskAlerts] = useState<SupplyChainAlert[]>([]);
+  const [globalConditions, setGlobalConditions] = useState<GlobalCondition[]>([]);
   const [riskScore, setRiskScore] = useState(7.2);
   const [loading, setLoading] = useState(true);
 
@@ -39,46 +41,25 @@ export function RiskManagement() {
       try {
         setLoading(true);
         
-        // Mock risk alerts data
-        const mockAlerts: RiskAlert[] = [
-          {
-            id: '1',
-            type: 'geopolitical',
-            severity: 'high',
-            region: 'Red Sea',
-            title: 'Increased Maritime Tensions',
-            description: 'Rising tensions in Red Sea region affecting shipping routes',
-            impact: 'Potential 15-20 day delays for Asia-Europe routes',
-            detectedAt: new Date(),
-            sources: ['Maritime Intelligence', 'News Reports']
-          },
-          {
-            id: '2',
-            type: 'weather',
-            severity: 'medium',
-            region: 'Gulf Coast',
-            title: 'Hurricane Season Alert',
-            description: 'Active hurricane season predicted for Gulf Coast',
-            impact: 'Port closures and shipping delays expected',
-            detectedAt: new Date(),
-            sources: ['Weather Services', 'Port Authorities']
-          },
-          {
-            id: '3',
-            type: 'regulatory',
-            severity: 'low',
-            region: 'Global',
-            title: 'New Import Regulations',
-            description: 'Updated import regulations for electronics',
-            impact: 'Additional documentation and inspection requirements',
-            detectedAt: new Date(),
-            sources: ['Customs Authorities', 'Trade Publications']
-          }
-        ];
+        // Fetch dynamic risk alerts and global conditions
+        const [alerts, conditions] = await Promise.all([
+          getSupplyChainAlerts(),
+          getGlobalConditions()
+        ]);
         
-        setRiskAlerts(mockAlerts);
+        setRiskAlerts(alerts);
+        setGlobalConditions(conditions);
+        
+        // Calculate dynamic risk score based on alerts
+        const severityScores = { critical: 4, high: 3, medium: 2, low: 1 };
+        const totalScore = alerts.reduce((sum, alert) => sum + severityScores[alert.severity], 0);
+        const avgScore = alerts.length > 0 ? (totalScore / alerts.length) * 2 : 7.2;
+        setRiskScore(Math.min(10, Math.max(0, avgScore)));
+        
       } catch (error) {
         console.error('Error fetching risk data:', error);
+        // Fallback to default data if API fails
+        setRiskScore(7.2);
       } finally {
         setLoading(false);
       }

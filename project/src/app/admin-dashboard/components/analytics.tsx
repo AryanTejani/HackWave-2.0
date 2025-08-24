@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -14,9 +14,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { getMarketData, getSupplyChainNews } from '@/lib/tools';
 
 export function Analytics() {
   const [timeRange, setTimeRange] = useState('30d');
+  const [marketData, setMarketData] = useState<any>(null);
+  const [supplyChainNews, setSupplyChainNews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchAnalyticsData = async () => {
+      try {
+        setLoading(true);
+        const [market, news] = await Promise.all([
+          getMarketData(),
+          getSupplyChainNews(3)
+        ]);
+        
+        setMarketData(market);
+        setSupplyChainNews(news);
+      } catch (error) {
+        console.error('Error fetching analytics data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAnalyticsData();
+  }, []);
 
   return (
     <div className="space-y-6">
