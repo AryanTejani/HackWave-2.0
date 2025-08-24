@@ -13,6 +13,7 @@ import { ProductManagement } from "./components/product-management";
 import { Analytics } from "./components/analytics";
 import { Settings } from "./components/settings";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import Map from './components/map';
 
 export type DashboardSection = 
   | 'overview' 
@@ -22,7 +23,8 @@ export type DashboardSection =
   | 'risk-management' 
   | 'products' 
   | 'analytics' 
-  | 'settings';
+  | 'settings'
+  | 'map';
 
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
@@ -65,6 +67,8 @@ export default function AdminDashboard() {
         return <Analytics />;
       case 'settings':
         return <Settings />;
+      case 'map':
+        return <Map />;
       default:
         return <DashboardOverview />;
     }

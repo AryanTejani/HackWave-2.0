@@ -16,7 +16,8 @@ import {
   IconUsers,
   IconDatabase,
   IconReport,
-  IconFileAi
+  IconFileAi,
+  IconMap
 } from "@tabler/icons-react";
 
 import {
@@ -32,6 +33,7 @@ import { NavMain } from "./nav-main";
 import { NavSecondary } from "./nav-secondary";
 import { NavUser } from "./nav-user";
 import { DashboardSection } from "../page";
+import  Map  from "./map";      
 
 const data = {
   user: {
@@ -81,6 +83,12 @@ const data = {
       section: "analytics" as DashboardSection,
       icon: IconChartBar,
       description: "Advanced analytics and reporting"
+    },
+    {
+      title: "Map",
+      section: "map" as DashboardSection,
+      icon: IconMap,
+      description: "Map of the world"
     }
   ],
   navSecondary: [
