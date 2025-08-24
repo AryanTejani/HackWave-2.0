@@ -1,4 +1,3 @@
-// src/app/admin-dashboard/components/dashboard-overview.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -12,138 +11,144 @@ import {
   Package,
   Users,
   MapPin,
-  Activity
+  Activity,
+  Download,
+  Eye,
+  RefreshCw
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-// ... (keep the interface definitions)
-interface DashboardStats {
+interface LiveDataSummary {
+  totalProducts: number;
+  totalSuppliers: number;
   totalShipments: number;
-  onTimeDeliveries: number;
+  totalFactories: number;
+  totalWarehouses: number;
+  totalRetailers: number;
+  totalValue: number;
+  onTimePercentage: number;
+  riskScore: number;
+}
+
+interface LiveDataStatus {
+  onTimeShipments: number;
   delayedShipments: number;
   stuckShipments: number;
-  deliveredShipments: number;
-  totalValue: number;
-  activeProducts: number;
-  totalSuppliers: number;
-  riskScore: number;
-  onTimePercentage: number;
+  totalShipments: number;
 }
 
-interface RecentActivity {
-  id: string;
-  type: 'shipment' | 'alert' | 'product' | 'supplier';
-  title: string;
-  description: string;
-  timestamp: string;
-  status: 'success' | 'warning' | 'error' | 'info';
+interface RecentData {
+  products: any[];
+  suppliers: any[];
+  shipments: any[];
+  factories: any[];
+  warehouses: any[];
+  retailers: any[];
 }
 
+interface LiveDataResponse {
+  summary: LiveDataSummary;
+  recentData: RecentData;
+  status: LiveDataStatus;
+}
 
-export function DashboardOverview() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalShipments: 0,
-    onTimeDeliveries: 0,
-    delayedShipments: 0,
-    stuckShipments: 0,
-    deliveredShipments: 0,
-    totalValue: 0,
-    activeProducts: 0,
-    totalSuppliers: 0,
-    riskScore: 0,
-    onTimePercentage: 0
-  });
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
+interface LiveDataProps {
+  initialDataType?: string;
+}
+
+export function LiveData({ initialDataType }: LiveDataProps) {
+  const [liveData, setLiveData] = useState<LiveDataResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState(initialDataType || 'overview');
+
+  // Update activeTab when initialDataType changes
+  useEffect(() => {
+    console.log('LiveData component received initialDataType:', initialDataType);
+    if (initialDataType && initialDataType !== 'overview') {
+      console.log('Setting active tab to:', initialDataType);
+      setActiveTab(initialDataType);
+    }
+  }, [initialDataType]);
+
+  const fetchLiveData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/live-data', {
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        setLiveData(result.data);
+      } else {
+        console.error('Failed to fetch live data');
+      }
+    } catch (error) {
+      console.error('Error fetching live data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch shipments and live data in parallel
-        const [shipmentsRes, liveDataRes] = await Promise.all([
-          fetch('/api/shipments'),
-          fetch('/api/live-data') // Call your new API route
-        ]);
-
-        if (shipmentsRes.ok) {
-          const shipments = await shipmentsRes.json();
-          
-          const totalShipments = shipments.length;
-          const onTimeDeliveries = shipments.filter((s: any) => s.status === 'On-Time').length;
-          const delayedShipments = shipments.filter((s: any) => s.status === 'Delayed').length;
-          const stuckShipments = shipments.filter((s: any) => s.status === 'Stuck').length;
-          const deliveredShipments = shipments.filter((s: any) => s.status === 'Delivered').length;
-          const totalValue = shipments.reduce((sum: number, s: any) => sum + (s.totalValue || 0), 0);
-          const onTimePercentage = totalShipments > 0 ? (onTimeDeliveries / totalShipments) * 100 : 0;
-
-          setStats({
-            totalShipments,
-            onTimeDeliveries,
-            delayedShipments,
-            stuckShipments,
-            deliveredShipments,
-            totalValue,
-            activeProducts: 10,
-            totalSuppliers: 25,
-            riskScore: 7.2,
-            onTimePercentage
-          });
-        }
-
-        if (liveDataRes.ok) {
-          const liveData = await liveDataRes.json();
-          console.log("Live Data Received:", liveData.data);
-          // You can now use liveData.data.news and liveData.data.weather in your component
-        }
-
-        // Mock recent activity
-        setRecentActivity([
-          // ... (your existing recent activity data)
-        ]);
-
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
+    fetchLiveData();
+    
+    // Refresh data every 30 seconds
+    const interval = setInterval(fetchLiveData, 30000);
+    return () => clearInterval(interval);
   }, []);
 
-  // ... (rest of the component remains the same)
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
+  const downloadDataAsExcel = async (dataType: string, data: any[]) => {
+    try {
+      // Convert data to CSV format
+      if (data.length === 0) {
+        alert('No data to download');
+        return;
+      }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'success': return 'text-green-600 bg-green-100 dark:bg-green-900/20 dark:text-green-400';
-      case 'warning': return 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400';
-      case 'error': return 'text-red-600 bg-red-100 dark:bg-red-900/20 dark:text-red-400';
-      case 'info': return 'text-blue-600 bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400';
-      default: return 'text-gray-600 bg-gray-100 dark:bg-gray-700 dark:text-gray-400';
+      const headers = Object.keys(data[0]);
+      const csvContent = [
+        headers.join(','),
+        ...data.map(row => 
+          headers.map(header => {
+            const value = row[header];
+            // Handle arrays and objects
+            if (Array.isArray(value)) {
+              return `"${value.join('; ')}"`;
+            }
+            if (typeof value === 'object' && value !== null) {
+              return `"${JSON.stringify(value)}"`;
+            }
+            return `"${value || ''}"`;
+          }).join(',')
+        )
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${dataType}_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading data:', error);
+      alert('Failed to download data');
     }
   };
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'shipment': return <Truck className="h-4 w-4" />;
-      case 'alert': return <AlertTriangle className="h-4 w-4" />;
-      case 'product': return <Package className="h-4 w-4" />;
-      case 'supplier': return <Users className="h-4 w-4" />;
-      default: return <Activity className="h-4 w-4" />;
-    }
+  const getRiskLevel = (score: number) => {
+    if (score <= 30) return { level: 'Low', color: 'bg-green-100 text-green-800' };
+    if (score <= 70) return { level: 'Medium', color: 'bg-yellow-100 text-yellow-800' };
+    return { level: 'High', color: 'bg-red-100 text-red-800' };
   };
 
   if (loading) {
@@ -151,156 +156,435 @@ export function DashboardOverview() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center space-x-2">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="text-gray-600 dark:text-gray-400">Loading dashboard...</span>
+          <span className="text-gray-600">Loading live data...</span>
         </div>
       </div>
     );
   }
 
+  if (!liveData) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-500">No live data available</p>
+        <Button onClick={fetchLiveData} className="mt-2">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+    );
+  }
+
+  const riskLevel = getRiskLevel(liveData.summary.riskScore);
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard Overview</h1>
-          <p className="text-gray-600 dark:text-gray-400">Monitor your supply chain performance and key metrics</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+            Live Data Dashboard
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            Real-time data from your uploaded files
+          </p>
         </div>
-        <div className="flex space-x-2">
-          <Button variant="outline">Export Report</Button>
-          <Button>Refresh Data</Button>
-        </div>
+        <Button onClick={fetchLiveData} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
-      {/* Key Metrics */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Shipments</CardTitle>
-            <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalShipments}</div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Active shipments in transit</p>
+            <div className="text-2xl font-bold">{liveData.summary.totalProducts}</div>
+            <p className="text-xs text-muted-foreground">
+              Active products in system
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">On-Time Rate</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <CardTitle className="text-sm font-medium">Total Suppliers</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.onTimePercentage.toFixed(1)}%</div>
-            <Progress value={stats.onTimePercentage} className="mt-2" />
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{stats.onTimeDeliveries} of {stats.totalShipments} on time</p>
+            <div className="text-2xl font-bold">{liveData.summary.totalSuppliers}</div>
+            <p className="text-xs text-muted-foreground">
+              Active suppliers
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600 dark:text-green-400" />
+            <CardTitle className="text-sm font-medium">Total Shipments</CardTitle>
+            <Truck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(stats.totalValue)}</div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Total shipment value</p>
+            <div className="text-2xl font-bold">{liveData.summary.totalShipments}</div>
+            <p className="text-xs text-muted-foreground">
+              Active shipments
+            </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Risk Score</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            <CardTitle className="text-sm font-medium">Risk Score</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.riskScore}/10</div>
-            <Badge variant={stats.riskScore > 7 ? "destructive" : stats.riskScore > 4 ? "secondary" : "default"}>
-              {stats.riskScore > 7 ? "High Risk" : stats.riskScore > 4 ? "Medium Risk" : "Low Risk"}
-            </Badge>
+            <div className="text-2xl font-bold">{liveData.summary.riskScore.toFixed(1)}</div>
+            <Badge className={riskLevel.color}>{riskLevel.level}</Badge>
           </CardContent>
         </Card>
       </div>
 
-      {/* Shipment Status Breakdown */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Shipment Status Overview</CardTitle>
-            <CardDescription>Current status of all shipments</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.onTimeDeliveries}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">On Time</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.delayedShipments}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Delayed</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{stats.stuckShipments}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Stuck</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-600 dark:text-gray-400">{stats.deliveredShipments}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Delivered</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+             {/* Tabs for different data types */}
+       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+         <TabsList className="grid w-full grid-cols-6">
+           <TabsTrigger value="overview">Overview</TabsTrigger>
+           <TabsTrigger value="products">Products</TabsTrigger>
+           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
+           <TabsTrigger value="shipments">Shipments</TabsTrigger>
+           <TabsTrigger value="factories">Factories</TabsTrigger>
+           <TabsTrigger value="warehouses">Warehouses</TabsTrigger>
+         </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick Stats</CardTitle>
-            <CardDescription>Key supply chain metrics</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Active Products</span>
-              <span className="font-semibold text-gray-900 dark:text-white">{stats.activeProducts}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Total Suppliers</span>
-              <span className="font-semibold text-gray-900 dark:text-white">{stats.totalSuppliers}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Avg Delivery Time</span>
-              <span className="font-semibold text-gray-900 dark:text-white">18.5 days</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Cost Efficiency</span>
-              <span className="font-semibold text-green-600 dark:text-green-400">+12.3%</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <CardDescription>Latest updates and notifications</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentActivity.map((activity) => (
-              <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                <div className={`p-2 rounded-full ${getStatusColor(activity.status)}`}>
-                  {getActivityIcon(activity.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">{activity.title}</p>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">{activity.timestamp}</span>
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Shipment Status */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Shipment Status</CardTitle>
+                <CardDescription>Current shipment distribution</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm">On Time</span>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{activity.description}</p>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium">{liveData.status.onTimeShipments}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {liveData.status.totalShipments > 0 ? 
+                        ((liveData.status.onTimeShipments / liveData.status.totalShipments) * 100).toFixed(1) : 0}%
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-4 w-4 text-yellow-600" />
+                    <span className="text-sm">Delayed</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium">{liveData.status.delayedShipments}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {liveData.status.totalShipments > 0 ? 
+                        ((liveData.status.delayedShipments / liveData.status.totalShipments) * 100).toFixed(1) : 0}%
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                    <span className="text-sm">Stuck</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium">{liveData.status.stuckShipments}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {liveData.status.totalShipments > 0 ? 
+                        ((liveData.status.stuckShipments / liveData.status.totalShipments) * 100).toFixed(1) : 0}%
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Performance Metrics */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Performance Metrics</CardTitle>
+                <CardDescription>Key performance indicators</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm">On-Time Delivery Rate</span>
+                    <span className="text-sm font-medium">
+                      {liveData.summary.onTimePercentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  <Progress 
+                    value={liveData.summary.onTimePercentage} 
+                    className="h-2" 
+                  />
+                </div>
+                
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm">Total Value</span>
+                    <span className="text-sm font-medium">
+                      ${liveData.summary.totalValue.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="pt-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Factories:</span>
+                      <span className="ml-2 font-medium">{liveData.summary.totalFactories}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Warehouses:</span>
+                      <span className="ml-2 font-medium">{liveData.summary.totalWarehouses}</span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Retailers:</span>
+                      <span className="ml-2 font-medium">{liveData.summary.totalRetailers}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        {/* Products Tab */}
+        <TabsContent value="products" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Recent Products</h3>
+            <Button 
+              onClick={() => downloadDataAsExcel('products', liveData.recentData.products)}
+              variant="outline"
+              size="sm"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </Button>
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead>Unit Cost</TableHead>
+                    <TableHead>Risk Level</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {liveData.recentData.products.map((product, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{product.name}</TableCell>
+                      <TableCell>{product.category}</TableCell>
+                      <TableCell>{product.supplier}</TableCell>
+                      <TableCell>${product.unitCost?.toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={product.riskLevel === 'high' ? 'destructive' : 
+                                       product.riskLevel === 'medium' ? 'secondary' : 'default'}>
+                          {product.riskLevel}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Suppliers Tab */}
+        <TabsContent value="suppliers" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Recent Suppliers</h3>
+            <Button 
+              onClick={() => downloadDataAsExcel('suppliers', liveData.recentData.suppliers)}
+              variant="outline"
+              size="sm"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </Button>
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Country</TableHead>
+                    <TableHead>Rating</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {liveData.recentData.suppliers.map((supplier, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{supplier.name}</TableCell>
+                      <TableCell>{supplier.location}</TableCell>
+                      <TableCell>{supplier.country}</TableCell>
+                      <TableCell>{supplier.rating?.toFixed(1)}/5</TableCell>
+                      <TableCell>
+                        <Badge variant={supplier.status === 'active' ? 'default' : 'secondary'}>
+                          {supplier.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Shipments Tab */}
+        <TabsContent value="shipments" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Recent Shipments</h3>
+            <Button 
+              onClick={() => downloadDataAsExcel('shipments', liveData.recentData.shipments)}
+              variant="outline"
+              size="sm"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </Button>
+          </div>
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Origin</TableHead>
+                    <TableHead>Destination</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {liveData.recentData.shipments.map((shipment, index) => (
+                    <TableRow key={index}>
+                      <TableCell>{shipment.origin}</TableCell>
+                      <TableCell>{shipment.destination}</TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          shipment.status === 'On-Time' ? 'default' :
+                          shipment.status === 'Delayed' ? 'secondary' :
+                          shipment.status === 'Stuck' ? 'destructive' : 'outline'
+                        }>
+                          {shipment.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{shipment.quantity}</TableCell>
+                      <TableCell>${shipment.totalValue?.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+                 {/* Factories Tab */}
+         <TabsContent value="factories" className="space-y-4">
+           <div className="flex items-center justify-between">
+             <h3 className="text-lg font-semibold">Recent Factories</h3>
+             <Button 
+               onClick={() => downloadDataAsExcel('factories', liveData.recentData.factories)}
+               variant="outline"
+               size="sm"
+             >
+               <Download className="h-4 w-4 mr-2" />
+               Download CSV
+             </Button>
+           </div>
+           <Card>
+             <CardContent className="p-0">
+               <Table>
+                 <TableHeader>
+                   <TableRow>
+                     <TableHead>Name</TableHead>
+                     <TableHead>Location</TableHead>
+                     <TableHead>Capacity</TableHead>
+                     <TableHead>Efficiency</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {liveData.recentData.factories.map((factory, index) => (
+                     <TableRow key={index}>
+                       <TableCell className="font-medium">{factory.name}</TableCell>
+                       <TableCell>{factory.location}</TableCell>
+                       <TableCell>{factory.capacity}</TableCell>
+                       <TableCell>{(factory.efficiency * 100).toFixed(1)}%</TableCell>
+                     </TableRow>
+                   ))}
+                 </TableBody>
+               </Table>
+             </CardContent>
+           </Card>
+         </TabsContent>
+
+         {/* Warehouses Tab */}
+         <TabsContent value="warehouses" className="space-y-4">
+           <div className="flex items-center justify-between">
+             <h3 className="text-lg font-semibold">Recent Warehouses</h3>
+             <Button 
+               onClick={() => downloadDataAsExcel('warehouses', liveData.recentData.warehouses)}
+               variant="outline"
+               size="sm"
+             >
+               <Download className="h-4 w-4 mr-2" />
+               Download CSV
+             </Button>
+           </div>
+           <Card>
+             <CardContent className="p-0">
+               <Table>
+                 <TableHeader>
+                   <TableRow>
+                     <TableHead>Name</TableHead>
+                     <TableHead>Location</TableHead>
+                     <TableHead>Capacity</TableHead>
+                     <TableHead>Utilization</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {liveData.recentData.warehouses.map((warehouse, index) => (
+                     <TableRow key={index}>
+                       <TableCell className="font-medium">{warehouse.name}</TableCell>
+                       <TableCell>{warehouse.location}</TableCell>
+                       <TableCell>{warehouse.capacity}</TableCell>
+                       <TableCell>{(warehouse.utilization * 100).toFixed(1)}%</TableCell>
+                     </TableRow>
+                   ))}
+                 </TableBody>
+               </Table>
+             </CardContent>
+           </Card>
+         </TabsContent>
+      </Tabs>
+
+      {/* Last Updated */}
+      <div className="text-center text-sm text-muted-foreground">
+        Last updated: {new Date().toLocaleTimeString()}
+      </div>
     </div>
   );
 }

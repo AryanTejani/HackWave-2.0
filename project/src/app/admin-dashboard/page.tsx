@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
 import { SiteHeader } from "./components/site-header";
-import { DashboardOverview } from "./components/dashboard-overview";
+import DashboardOverview from "./components/dashboard-overview";
+import { LiveData } from "./components/live-data";
 import { ShipmentManagement } from "./components/shipment-management";
 import { AIIntelligence } from "./components/ai-intelligence";
 import { RiskManagement } from "./components/risk-management";
@@ -16,6 +17,7 @@ import Map from './components/map';
 
 export type DashboardSection = 
   | 'overview' 
+  | 'live-data'
   | 'shipments' 
   | 'ai-intelligence' 
   | 'risk-management' 
@@ -27,11 +29,32 @@ export type DashboardSection =
 export default function AdminDashboard() {
   const [activeSection, setActiveSection] = useState<DashboardSection>('overview');
   const [isLoading, setIsLoading] = useState(false);
+  const [dataType, setDataType] = useState<string>('overview');
+
+  useEffect(() => {
+    // Listen for section change events from data history
+    const handleSectionChange = (event: any) => {
+      console.log('Section change event received:', event.detail);
+      const { section, dataType: newDataType } = event.detail;
+      setActiveSection(section as DashboardSection);
+      if (newDataType) {
+        setDataType(newDataType);
+      }
+    };
+
+    window.addEventListener('changeSection', handleSectionChange);
+    
+    return () => {
+      window.removeEventListener('changeSection', handleSectionChange);
+    };
+  }, []);
 
   const renderSection = () => {
     switch (activeSection) {
       case 'overview':
         return <DashboardOverview />;
+      case 'live-data':
+        return <LiveData initialDataType={dataType} />;
       case 'shipments':
         return <ShipmentManagement />;
       case 'ai-intelligence':

@@ -10,13 +10,15 @@ import {
   DollarSign,
   Activity,
   Eye,
-  Settings
+  Settings,
+  Lightbulb
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { getSupplyChainAlerts, getGlobalConditions, SupplyChainAlert, GlobalCondition } from '@/lib/tools';
+import { StrategyRecommendations } from './strategy-recommendations';
 
 interface RiskAlert {
   id: string;
@@ -35,6 +37,8 @@ export function RiskManagement() {
   const [globalConditions, setGlobalConditions] = useState<GlobalCondition[]>([]);
   const [riskScore, setRiskScore] = useState(7.2);
   const [loading, setLoading] = useState(true);
+  const [aiRecommendations, setAiRecommendations] = useState<any>(null);
+  const [generatingRecommendations, setGeneratingRecommendations] = useState(false);
 
   useEffect(() => {
     const fetchRiskData = async () => {
@@ -78,6 +82,33 @@ export function RiskManagement() {
     }
   };
 
+  const generateAIRecommendations = async () => {
+    try {
+      setGeneratingRecommendations(true);
+      
+      // Call the multi-agent system to generate recommendations
+      const response = await fetch('/api/strategy-recommendations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAiRecommendations(data.recommendations);
+        console.log('✅ AI recommendations generated:', data);
+      } else {
+        console.error('Failed to generate AI recommendations');
+      }
+    } catch (error) {
+      console.error('Error generating AI recommendations:', error);
+    } finally {
+      setGeneratingRecommendations(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -98,6 +129,23 @@ export function RiskManagement() {
           <p className="text-gray-600 dark:text-gray-400">Monitor and manage supply chain risks proactively</p>
         </div>
         <div className="flex space-x-2">
+          <Button 
+            onClick={generateAIRecommendations}
+            disabled={generatingRecommendations}
+            variant="outline"
+          >
+            {generatingRecommendations ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 mr-2 border-b-2 border-blue-600"></div>
+                Generating...
+              </>
+            ) : (
+              <>
+                <Lightbulb className="h-4 w-4 mr-2" />
+                Generate AI Recommendations
+              </>
+            )}
+          </Button>
           <Button variant="outline">
             <Settings className="h-4 w-4 mr-2" />
             Risk Settings
@@ -268,6 +316,12 @@ export function RiskManagement() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Strategic Recommendations */}
+      <StrategyRecommendations 
+        recommendations={aiRecommendations}
+        loading={generatingRecommendations}
+      />
     </div>
   );
 }
