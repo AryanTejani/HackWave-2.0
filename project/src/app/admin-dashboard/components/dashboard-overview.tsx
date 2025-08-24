@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   Truck, 
   AlertTriangle, 
@@ -61,10 +62,15 @@ export function DashboardOverview() {
       try {
         setLoading(true);
         
-        // Fetch shipments and calculate stats
-        const shipmentsRes = await fetch('/api/shipments');
+        // Fetch shipments and products in parallel
+        const [shipmentsRes, productsRes] = await Promise.all([
+          fetch('/api/shipments'),
+          fetch('/api/products')
+        ]);
+
         if (shipmentsRes.ok) {
-          const shipments = await shipmentsRes.json();
+          const shipmentsResult = await shipmentsRes.json();
+          const shipments = shipmentsResult.success ? shipmentsResult.data : [];
           
           const totalShipments = shipments.length;
           const onTimeDeliveries = shipments.filter((s: any) => s.status === 'On-Time').length;
@@ -74,6 +80,18 @@ export function DashboardOverview() {
           const totalValue = shipments.reduce((sum: number, s: any) => sum + (s.totalValue || 0), 0);
           const onTimePercentage = totalShipments > 0 ? (onTimeDeliveries / totalShipments) * 100 : 0;
 
+          // Get products data
+          let activeProducts = 0;
+          let totalSuppliers = 0;
+          if (productsRes.ok) {
+            const productsResult = await productsRes.json();
+            const products = productsResult.success ? productsResult.data : [];
+            activeProducts = products.length;
+            // Count unique suppliers
+            const uniqueSuppliers = new Set(products.map((p: any) => p.supplier));
+            totalSuppliers = uniqueSuppliers.size;
+          }
+
           setStats({
             totalShipments,
             onTimeDeliveries,
@@ -81,9 +99,9 @@ export function DashboardOverview() {
             stuckShipments,
             deliveredShipments,
             totalValue,
-            activeProducts: 10, // Demo data
-            totalSuppliers: 25, // Demo data
-            riskScore: 7.2, // Demo data
+            activeProducts,
+            totalSuppliers,
+            riskScore: 7.2, // Demo data - could be calculated from alerts
             onTimePercentage
           });
         }
@@ -183,8 +201,17 @@ export function DashboardOverview() {
           <p className="text-gray-600 dark:text-gray-400">Monitor your supply chain performance and key metrics</p>
         </div>
         <div className="flex space-x-2">
+          <Button variant="outline" asChild>
+            <Link href="/product-form">Add Product</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/shipment-form">Add Shipment</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/supplier-form">Add Supplier</Link>
+          </Button>
           <Button variant="outline">Export Report</Button>
-          <Button>Refresh Data</Button>
+          <Button onClick={() => window.location.reload()}>Refresh Data</Button>
         </div>
       </div>
 

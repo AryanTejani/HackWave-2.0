@@ -2,13 +2,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { ShipmentWithProduct, Alert } from '@/lib/types';
 import ShipmentTable from '@/components/shipment/ShipmentTable';
 import AlertsSection from '@/components/shipment/AlertsSection';
 import AddShipmentForm from '@/components/shipment/AddShipmentForm';
 import ExportButton from '@/components/ui/export-button';
 import ExportModal from '@/components/ui/export-modal';
-import { Plus, Truck, AlertTriangle, CheckCircle, Clock, FileSpreadsheet, Settings } from 'lucide-react';
+import { Plus, Truck, AlertTriangle, CheckCircle, Clock, FileSpreadsheet, Settings, Package } from 'lucide-react';
 
 interface DashboardStats {
   total: number;
@@ -31,32 +32,89 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Fetch shipments and alerts in parallel
-      const [shipmentsRes, alertsRes] = await Promise.all([
-        fetch('/api/shipments'),
-        fetch('/api/alerts')
-      ]);
+      // Use demo data for regular dashboard
+      const demoShipments = [
+        {
+          _id: '1',
+          productId: { _id: 'p1', name: 'iPhone 15 Pro', category: 'Electronics', supplier: 'Apple Inc.' },
+          origin: 'Shanghai, China',
+          destination: 'Los Angeles, USA',
+          status: 'On-Time' as const,
+          expectedDelivery: new Date('2024-01-15'),
+          trackingNumber: 'TRK001',
+          totalValue: 1200,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: '2',
+          productId: { _id: 'p2', name: 'MacBook Pro', category: 'Electronics', supplier: 'Apple Inc.' },
+          origin: 'Shenzhen, China',
+          destination: 'New York, USA',
+          status: 'Delayed' as const,
+          expectedDelivery: new Date('2024-01-10'),
+          trackingNumber: 'TRK002',
+          totalValue: 2500,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          _id: '3',
+          productId: { _id: 'p3', name: 'AirPods Pro', category: 'Electronics', supplier: 'Apple Inc.' },
+          origin: 'Taipei, Taiwan',
+          destination: 'Chicago, USA',
+          status: 'Stuck' as const,
+          expectedDelivery: new Date('2024-01-08'),
+          trackingNumber: 'TRK003',
+          totalValue: 300,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      ];
 
-      if (shipmentsRes.ok) {
-        const shipmentsData = await shipmentsRes.json();
-        setShipments(shipmentsData);
-        
-        // Calculate stats
-        const stats = {
-          total: shipmentsData.length,
-          onTime: shipmentsData.filter((s: any) => s.status === 'On-Time').length,
-          delayed: shipmentsData.filter((s: any) => s.status === 'Delayed').length,
-          stuck: shipmentsData.filter((s: any) => s.status === 'Stuck').length,
-          delivered: shipmentsData.filter((s: any) => s.status === 'Delivered').length,
-        };
-        setStats(stats);
-      }
+      const demoAlerts = [
+        {
+          shipmentId: '2',
+          productName: 'MacBook Pro',
+          status: 'Delayed' as const,
+          origin: 'Shenzhen, China',
+          destination: 'New York, USA',
+          expectedDelivery: new Date('2024-01-10'),
+          riskLevel: 'Medium' as const,
+          suggestions: ['Contact shipping provider', 'Monitor closely', 'Prepare customer communication']
+        },
+        {
+          shipmentId: '3',
+          productName: 'AirPods Pro',
+          status: 'Stuck' as const,
+          origin: 'Taipei, Taiwan',
+          destination: 'Chicago, USA',
+          expectedDelivery: new Date('2024-01-08'),
+          riskLevel: 'High' as const,
+          suggestions: ['Check customs clearance', 'Contact customs broker', 'Review documentation']
+        }
+      ];
 
-      if (alertsRes.ok) {
-        const alertsData = await alertsRes.json();
-        setAlerts(alertsData.alerts);
-        setAlertsSummary(alertsData.summary);
-      }
+      setShipments(demoShipments);
+      setAlerts(demoAlerts);
+      
+      // Calculate stats
+      const stats = {
+        total: demoShipments.length,
+        onTime: demoShipments.filter(s => s.status === 'On-Time').length,
+        delayed: demoShipments.filter(s => s.status === 'Delayed').length,
+        stuck: demoShipments.filter(s => s.status === 'Stuck').length,
+        delivered: 0, // No delivered shipments in demo data
+      };
+      setStats(stats);
+
+      setAlertsSummary({
+        total: demoAlerts.length,
+        high: demoAlerts.filter(a => a.riskLevel === 'High').length,
+        medium: demoAlerts.filter(a => a.riskLevel === 'Medium').length,
+        low: 0, // No low risk alerts in demo data
+      });
+
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -96,6 +154,20 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-3">
+              <Link
+                href="/product-form"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <Package className="h-4 w-4 mr-2" />
+                Add Product
+              </Link>
+              <Link
+                href="/shipment-form"
+                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <Truck className="h-4 w-4 mr-2" />
+                Add Shipment
+              </Link>
               <button
                 onClick={() => setShowExportModal(true)}
                 className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   Package, 
   Plus, 
@@ -32,13 +33,17 @@ interface Product {
 }
 
 interface Supplier {
-  id: string;
+  _id: string;
   name: string;
   location: string;
+  country: string;
   rating: number;
-  products: number;
   status: 'active' | 'inactive' | 'pending';
   riskLevel: 'low' | 'medium' | 'high';
+  specialties: string[];
+  leadTime: number;
+  minimumOrder: number;
+  maximumOrder: number;
 }
 
 export function ProductManagement() {
@@ -52,44 +57,23 @@ export function ProductManagement() {
       try {
         setLoading(true);
         
-        // Fetch products
-        const productsRes = await fetch('/api/products');
+        // Fetch products and suppliers in parallel
+        const [productsRes, suppliersRes] = await Promise.all([
+          fetch('/api/products'),
+          fetch('/api/suppliers')
+        ]);
+
         if (productsRes.ok) {
-          const productsData = await productsRes.json();
+          const productsResult = await productsRes.json();
+          const productsData = productsResult.success ? productsResult.data : [];
           setProducts(productsData);
         }
 
-        // Mock suppliers data
-        const mockSuppliers: Supplier[] = [
-          {
-            id: '1',
-            name: 'Foxconn Technology Group',
-            location: 'Taiwan',
-            rating: 4.8,
-            products: 15,
-            status: 'active',
-            riskLevel: 'low'
-          },
-          {
-            id: '2',
-            name: 'Samsung Electronics',
-            location: 'South Korea',
-            rating: 4.6,
-            products: 12,
-            status: 'active',
-            riskLevel: 'medium'
-          },
-          {
-            id: '3',
-            name: 'TSMC',
-            location: 'Taiwan',
-            rating: 4.9,
-            products: 8,
-            status: 'active',
-            riskLevel: 'low'
-          }
-        ];
-        setSuppliers(mockSuppliers);
+        if (suppliersRes.ok) {
+          const suppliersResult = await suppliersRes.json();
+          const suppliersData = suppliersResult.success ? suppliersResult.data : [];
+          setSuppliers(suppliersData);
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -118,7 +102,7 @@ export function ProductManagement() {
     }
   };
 
-  const filteredProducts = products.filter(product =>
+  const filteredProducts = (products || []).filter(product =>
     product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
     product.supplier.toLowerCase().includes(searchTerm.toLowerCase())
@@ -148,9 +132,17 @@ export function ProductManagement() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Product
+          <Button asChild>
+            <Link href="/product-form">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Product
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/supplier-form">
+              <Building className="h-4 w-4 mr-2" />
+              Add Supplier
+            </Link>
           </Button>
         </div>
       </div>
@@ -186,7 +178,7 @@ export function ProductManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {Math.round(products.reduce((sum, p) => sum + p.leadTime, 0) / products.length)} days
+              {products.length > 0 ? Math.round(products.reduce((sum, p) => sum + p.leadTime, 0) / products.length) : 0} days
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-400">Average delivery time</p>
           </CardContent>
@@ -287,12 +279,12 @@ export function ProductManagement() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {suppliers.map((supplier) => (
-                  <Card key={supplier.id} className="hover:shadow-md transition-shadow">
+                  <Card key={supplier._id} className="hover:shadow-md transition-shadow">
                     <CardHeader className="pb-3">
                       <div className="flex justify-between items-start">
                         <div>
                           <CardTitle className="text-sm">{supplier.name}</CardTitle>
-                          <CardDescription className="text-xs">{supplier.location}</CardDescription>
+                          <CardDescription className="text-xs">{supplier.location}, {supplier.country}</CardDescription>
                         </div>
                         <Badge 
                           variant={supplier.status === 'active' ? 'default' : supplier.status === 'pending' ? 'secondary' : 'outline'}
@@ -311,8 +303,8 @@ export function ProductManagement() {
                           </div>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600 dark:text-gray-400">Products:</span>
-                          <span className="font-medium">{supplier.products}</span>
+                          <span className="text-gray-600 dark:text-gray-400">Lead Time:</span>
+                          <span className="font-medium">{supplier.leadTime} days</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Risk Level:</span>
@@ -320,6 +312,15 @@ export function ProductManagement() {
                             {supplier.riskLevel}
                           </span>
                         </div>
+                        {supplier.specialties.length > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-gray-600 dark:text-gray-400">Specialties:</span>
+                            <span className="font-medium text-xs">
+                              {supplier.specialties.slice(0, 2).join(', ')}
+                              {supplier.specialties.length > 2 && '...'}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>

@@ -16,6 +16,7 @@ export interface Alert {
       name: string;
       category: string;
       supplier: string;
+      origin?: string;
     };
     origin: string;
     destination: string;
@@ -23,6 +24,13 @@ export interface Alert {
     expectedDelivery: Date;
     actualDelivery?: Date;
     trackingNumber?: string;
+    quantity?: number;
+    totalValue?: number;
+    shippingMethod?: string;
+    carrier?: string;
+    currentLocation?: string;
+    estimatedArrival?: Date;
+    riskFactors?: string[];
     createdAt: Date;
     updatedAt: Date;
   }

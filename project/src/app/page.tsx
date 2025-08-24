@@ -17,7 +17,7 @@ export default function Home() {
             to keep your supply chain running smoothly.
           </p>
           <Link
-            href="/dashboard"
+            href="/admin-dashboard"
             className="btn-primary text-lg px-8 py-3"
           >
             Get Started
