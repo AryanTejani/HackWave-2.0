@@ -168,15 +168,15 @@ function generateMappingPrompt(dataType: string, jsonData: any[]): string {
         "origin": "string (required) - map from Origin, From, Source, or similar",
         "destination": "string (required) - map from Destination, To, Delivery Address, or similar",
         "status": "string (enum: 'On-Time', 'Delayed', 'Stuck', 'Delivered') - map from Status, Shipment Status, or default to 'On-Time'",
-        "expectedDelivery": "string (ISO date) - map from Expected Delivery, ETA, Delivery Date, or generate future date",
-        "actualDelivery": "string (ISO date, optional) - map from Actual Delivery, Delivered Date, or null",
+        "expectedDelivery": "Date object (required) - map from Expected Delivery, ETA, Delivery Date, or generate future date",
+        "actualDelivery": "Date object (optional) - map from Actual Delivery, Delivered Date, or null",
         "trackingNumber": "string (optional) - map from Tracking Number, Tracking ID, or generate unique tracking",
         "quantity": "number (required, min 1) - map from Quantity, Qty, Amount, or default to 1",
         "totalValue": "number (required, min 0) - map from Total Value, Value, Amount, Price, or default to 1000",
         "shippingMethod": "string (enum: 'Air', 'Sea', 'Land', 'Express') - map from Shipping Method, Method, Transport, or default to 'Land'",
         "carrier": "string (required) - map from Carrier, Shipping Company, Transport Company, or default to 'Standard Carrier'",
         "currentLocation": "string (optional) - map from Current Location, Location, or null",
-        "estimatedArrival": "string (ISO date, optional) - map from Estimated Arrival, ETA, or null",
+        "estimatedArrival": "Date object (optional) - map from Estimated Arrival, ETA, or null",
         "riskFactors": "array of strings (optional) - map from Risk Factors, Risks, or empty array"
       }
     `
@@ -198,11 +198,12 @@ CRITICAL INSTRUCTIONS:
 3. For missing required fields, use sensible defaults as specified in the schema
 4. Convert string numbers to actual numbers (e.g., "100" becomes 100)
 5. Ensure all required fields are present and have valid data types
-6. For dates, convert to ISO format (YYYY-MM-DD)
+6. For Date fields, create proper Date objects (e.g., new Date("2024-01-15")) - NOT ISO strings
 7. For arrays, create empty arrays if no data is available
 8. Generate unique IDs for ID fields if not present in the data
 
 IMPORTANT: The raw data may have different column names than the expected schema. Use intelligent field mapping based on the hints provided.
+IMPORTANT: Date fields must be Date objects, not string representations of dates.
 
 Return ONLY a valid JSON array with the mapped data. Do not include any explanations or markdown formatting.
 
@@ -308,8 +309,8 @@ function validateMappedData(dataType: string, data: any[]): { isValid: boolean; 
         if (!record.status || !['On-Time', 'Delayed', 'Stuck', 'Delivered'].includes(record.status)) {
           errors.push(`Record ${index}: Invalid status - must be On-Time, Delayed, Stuck, or Delivered`);
         }
-        if (!record.expectedDelivery || typeof record.expectedDelivery !== 'string') {
-          errors.push(`Record ${index}: Invalid or missing expectedDelivery`);
+        if (!record.expectedDelivery || !(record.expectedDelivery instanceof Date)) {
+          errors.push(`Record ${index}: Invalid or missing expectedDelivery - must be a Date object`);
         }
         if (typeof record.quantity !== 'number' || record.quantity < 1) {
           errors.push(`Record ${index}: Invalid quantity - expected number >= 1, got ${typeof record.quantity}: ${record.quantity}`);
@@ -322,6 +323,13 @@ function validateMappedData(dataType: string, data: any[]): { isValid: boolean; 
         }
         if (typeof record.totalValue !== 'number' || record.totalValue < 0) {
           errors.push(`Record ${index}: Invalid totalValue - expected number >= 0, got ${typeof record.totalValue}: ${record.totalValue}`);
+        }
+        // Validate optional date fields
+        if (record.actualDelivery && !(record.actualDelivery instanceof Date)) {
+          errors.push(`Record ${index}: Invalid actualDelivery - must be a Date object or null`);
+        }
+        if (record.estimatedArrival && !(record.estimatedArrival instanceof Date)) {
+          errors.push(`Record ${index}: Invalid estimatedArrival - must be a Date object or null`);
         }
         break;
     }
@@ -442,15 +450,38 @@ function transformRawDataToSchema(dataType: string, rawData: any[]): any[] {
         transformed.origin = record['Origin'] || record['From'] || record['Source'] || 'Unknown';
         transformed.destination = record['Destination'] || record['To'] || record['Delivery Address'] || 'Unknown';
         transformed.status = record['Status'] || record['Shipment Status'] || 'On-Time';
-        transformed.expectedDelivery = record['Expected Delivery'] || record['ETA'] || record['Delivery Date'] || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        transformed.actualDelivery = record['Actual Delivery'] || record['Delivered Date'] || null;
+        
+        // Handle expectedDelivery date
+        const expectedDeliveryStr = record['Expected Delivery'] || record['ETA'] || record['Delivery Date'];
+        if (expectedDeliveryStr) {
+          transformed.expectedDelivery = new Date(expectedDeliveryStr);
+        } else {
+          transformed.expectedDelivery = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+        }
+        
+        // Handle actualDelivery date
+        const actualDeliveryStr = record['Actual Delivery'] || record['Delivered Date'];
+        if (actualDeliveryStr) {
+          transformed.actualDelivery = new Date(actualDeliveryStr);
+        } else {
+          transformed.actualDelivery = null;
+        }
+        
         transformed.trackingNumber = record['Tracking Number'] || record['Tracking ID'] || `TRK_${index + 1}`;
         transformed.quantity = parseFloat(record['Quantity'] || record['Qty'] || record['Amount'] || '1');
         transformed.totalValue = parseFloat(record['Total Value'] || record['Value'] || record['Amount'] || record['Price'] || '1000');
         transformed.shippingMethod = record['Shipping Method'] || record['Method'] || record['Transport'] || 'Land';
         transformed.carrier = record['Carrier'] || record['Shipping Company'] || record['Transport Company'] || 'Standard Carrier';
         transformed.currentLocation = record['Current Location'] || record['Location'] || null;
-        transformed.estimatedArrival = record['Estimated Arrival'] || record['ETA'] || null;
+        
+        // Handle estimatedArrival date
+        const estimatedArrivalStr = record['Estimated Arrival'] || record['ETA'];
+        if (estimatedArrivalStr) {
+          transformed.estimatedArrival = new Date(estimatedArrivalStr);
+        } else {
+          transformed.estimatedArrival = null;
+        }
+        
         transformed.riskFactors = [];
         break;
     }

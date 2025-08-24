@@ -1,12 +1,11 @@
 // lib/models/Shipment.ts
 import mongoose, { Document, Schema } from 'mongoose';
-import { IProduct } from './Product';
 
 export type ShipmentStatus = 'On-Time' | 'Delayed' | 'Stuck' | 'Delivered';
 export type ShippingMethod = 'Air' | 'Sea' | 'Land' | 'Express';
 
 export interface IShipment extends Document {
-  productId: mongoose.Types.ObjectId | IProduct;
+  productId: string; // Changed from mongoose.Types.ObjectId | IProduct to string
   origin: string;
   destination: string;
   status: ShipmentStatus;
@@ -27,9 +26,10 @@ export interface IShipment extends Document {
 
 const ShipmentSchema = new Schema<IShipment>({
   productId: {
-    type: Schema.Types.ObjectId,
-    ref: 'Product',
+    type: String, // Changed from Schema.Types.ObjectId to String
     required: [true, 'Product ID is required'],
+    trim: true,
+    maxlength: [100, 'Product ID cannot exceed 100 characters']
   },
   origin: {
     type: String,
