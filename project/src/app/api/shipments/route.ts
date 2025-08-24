@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongo';
 import { Shipment, IShipment } from '@/models/Shipment';
+import { requireAuth, getUserId } from '@/lib/auth-utils';
+import mongoose from 'mongoose';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Require authentication
+    const user = await requireAuth(request);
+    const userId = user._id.toString();
+
     await connectToDatabase();
-    const shipments = await Shipment.find()
+    
+    // Filter shipments by user ID
+    const shipments = await Shipment.find({ userId })
       .populate('productId', 'name category supplier origin')
       .sort({ createdAt: -1 })
       .lean();
@@ -16,6 +24,16 @@ export async function GET() {
       count: shipments.length
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      );
+    }
+    
     console.error('Error fetching shipments:', error);
     return NextResponse.json(
       { 
@@ -29,116 +47,109 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    const user = await requireAuth(request);
+    const userId = user._id.toString();
+
     await connectToDatabase();
+    
     const body = await request.json();
     
     // Validate required fields
-    const requiredFields = [
-      'productId',
-      'origin',
-      'destination',
-      'expectedDelivery',
-      'quantity',
-      'totalValue',
-      'shippingMethod',
-      'carrier'
-    ];
-    
+    const requiredFields = ['trackingNumber', 'productId', 'origin', 'destination', 'status'];
     for (const field of requiredFields) {
-      if (body[field] === undefined || body[field] === null || body[field] === '') {
+      if (!body[field]) {
         return NextResponse.json(
-          { 
-            success: false, 
-            error: `Missing required field: ${field}` 
-          },
+          { success: false, error: `${field} is required` },
           { status: 400 }
         );
       }
     }
-    
-    // Validate shipping method
-    const validShippingMethods = ['Air', 'Sea', 'Land', 'Express'];
-    if (!validShippingMethods.includes(body.shippingMethod)) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Invalid shipping method. Must be one of: Air, Sea, Land, Express' 
-        },
-        { status: 400 }
-      );
-    }
-    
-    // Validate numeric fields
-    const numericFields = ['quantity', 'totalValue'];
-    for (const field of numericFields) {
-      const value = body[field];
-      if (typeof value !== 'number' || value <= 0) {
-        return NextResponse.json(
-          { 
-            success: false, 
-            error: `${field} must be a positive number` 
-          },
-          { status: 400 }
-        );
-      }
-    }
-    
-    // Validate expected delivery date
-    const expectedDelivery = new Date(body.expectedDelivery);
-    if (isNaN(expectedDelivery.getTime())) {
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Invalid expected delivery date' 
-        },
-        { status: 400 }
-      );
-    }
-    
+
+    // Create shipment with user ID
     const shipment = new Shipment({
-      productId: body.productId,
+      ...body,
+      userId: new mongoose.Types.ObjectId(userId),
+      trackingNumber: body.trackingNumber.trim(),
       origin: body.origin.trim(),
       destination: body.destination.trim(),
-      expectedDelivery: expectedDelivery,
-      trackingNumber: body.trackingNumber?.trim(),
-      quantity: body.quantity,
-      totalValue: body.totalValue,
-      shippingMethod: body.shippingMethod,
-      carrier: body.carrier.trim(),
-      currentLocation: body.currentLocation?.trim(),
-      estimatedArrival: body.estimatedArrival ? new Date(body.estimatedArrival) : undefined,
+      status: body.status,
       riskFactors: body.riskFactors || []
     });
 
-    const savedShipment = await shipment.save();
-    await savedShipment.populate('productId', 'name category supplier origin');
-
+    await shipment.save();
+    
     return NextResponse.json({
       success: true,
-      message: 'Shipment created successfully',
-      data: savedShipment
+      data: shipment,
+      message: 'Shipment created successfully'
     }, { status: 201 });
-  } catch (error: any) {
-    console.error('Error creating shipment:', error);
     
-    // Handle Mongoose validation errors
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
       return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Validation failed',
-          details: validationErrors 
-        },
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    console.error('Error creating shipment:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to create shipment' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete a shipment
+export async function DELETE(request: NextRequest) {
+  try {
+    console.log('Shipments API: DELETE request received');
+    
+    // Get authenticated user
+    const user = await requireAuth(request);
+    console.log('Shipments API: User authenticated for DELETE:', user.email);
+    
+    await connectToDatabase();
+    
+    // Get shipment ID from URL params
+    const url = new URL(request.url);
+    const shipmentId = url.searchParams.get('id');
+    
+    if (!shipmentId) {
+      return NextResponse.json(
+        { success: false, error: 'Shipment ID is required' },
         { status: 400 }
       );
     }
     
+    console.log('Shipments API: Deleting shipment with ID:', shipmentId);
+    
+    // Find and delete the shipment
+    const deletedShipment = await Shipment.findByIdAndDelete(shipmentId);
+    
+    if (!deletedShipment) {
+      return NextResponse.json(
+        { success: false, error: 'Shipment not found' },
+        { status: 404 }
+      );
+    }
+    
+    console.log('Shipments API: Shipment deleted successfully:', deletedShipment._id);
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Shipment deleted successfully',
+      deletedShipment: {
+        id: deletedShipment._id,
+        trackingNumber: deletedShipment.trackingNumber
+      }
+    });
+    
+  } catch (error) {
+    console.error('Shipments API: Error in DELETE request:', error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: 'Failed to create shipment' 
-      },
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

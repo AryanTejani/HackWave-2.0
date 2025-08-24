@@ -14,6 +14,7 @@ export interface IProduct extends Document {
   maxOrderQuantity: number;
   riskLevel: 'low' | 'medium' | 'high';
   certifications: string[];
+  userId: mongoose.Types.ObjectId; // Add user ownership
   createdAt: Date;
   updatedAt: Date;
 }
@@ -89,6 +90,12 @@ const ProductSchema = new Schema<IProduct>(
         },
         message: 'Each certification cannot exceed 20 characters'
       }
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User ID is required'],
+      index: true // Add index for better query performance
     }
   },
   {
@@ -97,6 +104,9 @@ const ProductSchema = new Schema<IProduct>(
     toObject: { virtuals: true }
   }
 );
+
+// Add compound index for userId + name to ensure uniqueness per user
+ProductSchema.index({ userId: 1, name: 1 }, { unique: true });
 
 // Virtual for calculating total inventory value (if needed later)
 ProductSchema.virtual('totalValue').get(function() {
@@ -110,4 +120,4 @@ ProductSchema.index({ createdAt: -1 });
 ProductSchema.index({ name: 'text', description: 'text' }); // Text search index
 
 // Export the model
-export const Product = mongoose.models.Product || mongoose.model<IProduct>('Product', ProductSchema);
+export const Product = mongoose.models.Product || mongoose.model('Product', ProductSchema);

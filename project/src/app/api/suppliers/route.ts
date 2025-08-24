@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongo';
 import { Supplier, ISupplier } from '@/models/Supplier';
+import { requireAuth } from '@/lib/auth-utils';
+import mongoose from 'mongoose';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Require authentication
+    const user = await requireAuth(request);
+    const userId = user._id.toString();
+
     await connectToDatabase();
     
-    const suppliers = await Supplier.find({})
+    // Filter suppliers by user ID
+    const suppliers = await Supplier.find({ userId })
       .select('name location country rating status riskLevel specialties leadTime minimumOrder maximumOrder')
       .lean();
 
@@ -15,6 +22,16 @@ export async function GET() {
       data: suppliers
     });
   } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      );
+    }
+    
     console.error('Error fetching suppliers:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch suppliers' },
@@ -25,6 +42,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    const user = await requireAuth(request);
+    const userId = user._id.toString();
+
     await connectToDatabase();
     
     const body = await request.json();
@@ -87,14 +108,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create new supplier
+    // Create new supplier with user ID
     const supplier = new Supplier({
-      name: body.name,
-      location: body.location,
-      country: body.country,
-      contactPerson: body.contactPerson,
-      email: body.email,
-      phone: body.phone,
+      ...body,
+      userId, // Add user ID to the supplier
+      name: body.name.trim(),
+      location: body.location.trim(),
+      country: body.country.trim(),
+      contactPerson: body.contactPerson.trim(),
+      email: body.email.trim().toLowerCase(),
+      phone: body.phone.trim(),
       rating: body.rating || 0,
       status: body.status || 'pending',
       riskLevel: body.riskLevel || 'medium',
@@ -114,29 +137,74 @@ export async function POST(request: NextRequest) {
       message: 'Supplier created successfully'
     }, { status: 201 });
 
-  } catch (error: any) {
-    console.error('Error creating supplier:', error);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Authentication required') {
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Authentication required' 
+        },
+        { status: 401 }
+      );
+    }
     
-    // Handle Mongoose validation errors
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map((err: any) => err.message);
-      return NextResponse.json(
-        { success: false, error: validationErrors.join(', ') },
-        { status: 400 }
-      );
-    }
-
-    // Handle duplicate key errors
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern)[0];
-      return NextResponse.json(
-        { success: false, error: `${field} already exists` },
-        { status: 400 }
-      );
-    }
-
+    console.error('Error creating supplier:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to create supplier' },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete a supplier
+export async function DELETE(request: NextRequest) {
+  try {
+    console.log('Suppliers API: DELETE request received');
+    
+    // Get authenticated user
+    const user = await requireAuth(request);
+    console.log('Suppliers API: User authenticated for DELETE:', user.email);
+    
+    await connectToDatabase();
+    
+    // Get supplier ID from URL params
+    const url = new URL(request.url);
+    const supplierId = url.searchParams.get('id');
+    
+    if (!supplierId) {
+      return NextResponse.json(
+        { success: false, error: 'Supplier ID is required' },
+        { status: 400 }
+      );
+    }
+    
+    console.log('Suppliers API: Deleting supplier with ID:', supplierId);
+    
+    // Find and delete the supplier
+    const deletedSupplier = await Supplier.findByIdAndDelete(supplierId);
+    
+    if (!deletedSupplier) {
+      return NextResponse.json(
+        { success: false, error: 'Supplier not found' },
+        { status: 404 }
+      );
+    }
+    
+    console.log('Suppliers API: Supplier deleted successfully:', deletedSupplier._id);
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Supplier deleted successfully',
+      deletedSupplier: {
+        id: deletedSupplier._id,
+        name: deletedSupplier.name
+      }
+    });
+    
+  } catch (error) {
+    console.error('Suppliers API: Error in DELETE request:', error);
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

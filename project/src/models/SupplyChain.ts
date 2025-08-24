@@ -18,6 +18,7 @@ export interface ISupplyChain extends Document {
     supplierReliability: number;
     transportRisk: number;
   };
+  userId: mongoose.Types.ObjectId; // Add user ownership
   createdAt: Date;
   updatedAt: Date;
 }
@@ -93,6 +94,12 @@ const SupplyChainSchema = new Schema<ISupplyChain>(
         min: [0, 'Transport risk cannot be less than 0'],
         max: [100, 'Transport risk cannot exceed 100']
       }
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User ID is required'],
+      index: true // Add index for better query performance
     }
   },
   {
@@ -101,6 +108,12 @@ const SupplyChainSchema = new Schema<ISupplyChain>(
     toObject: { virtuals: true }
   }
 );
+
+// Add compound index for userId + productName to ensure uniqueness per user
+SupplyChainSchema.index({ userId: 1, productName: 1 }, { unique: true });
+
+// Add index for userId + status for better query performance
+SupplyChainSchema.index({ userId: 1, 'shipment.status': 1 });
 
 // Virtual for calculating overall risk score
 SupplyChainSchema.virtual('overallRiskScore').get(function() {

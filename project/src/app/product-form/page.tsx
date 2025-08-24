@@ -87,33 +87,51 @@ export default function ProductForm() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Basic form validation
+    if (!formData.name.trim() || !formData.category || !formData.supplier.trim() || 
+        !formData.origin.trim() || !formData.description.trim() || 
+        formData.unitCost <= 0 || formData.leadTime < 1 || 
+        formData.minOrderQuantity < 1 || formData.maxOrderQuantity <= formData.minOrderQuantity) {
+      setErrorMessage('Please fill all required fields with valid values');
+      setSubmitStatus('error');
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitStatus('idle');
     setErrorMessage('');
 
     try {
+      console.log('Submitting product data:', formData);
+      
       const response = await fetch('/api/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
+      console.log('Response status:', response.status);
+      
       const result = await response.json();
+      console.log('Response data:', result);
 
       if (result.success) {
         setSubmitStatus('success');
-        // Reset form after successful submission
         setTimeout(() => {
           setFormData(initialFormData);
           setSubmitStatus('idle');
+          router.push('/admin-dashboard');
         }, 2000);
       } else {
         setSubmitStatus('error');
         setErrorMessage(result.error || 'Failed to save product data');
       }
     } catch (error) {
+      console.error('Form submission error:', error);
       setSubmitStatus('error');
       setErrorMessage('Network error. Please try again.');
     } finally {
@@ -138,7 +156,7 @@ export default function ProductForm() {
         <div className="mb-8">
           <div className="flex items-center space-x-4 mb-4">
             <Link
-              href="/dashboard"
+              href="/admin-dashboard"
               className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -421,7 +439,7 @@ export default function ProductForm() {
           {/* Submit Button */}
           <div className="flex justify-end space-x-4">
             <Link
-              href="/dashboard"
+              href="/admin-dashboard"
               className="px-6 py-3 border border-gray-300 rounded-md text-gray-700 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
               Cancel

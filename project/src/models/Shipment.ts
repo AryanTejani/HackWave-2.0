@@ -20,6 +20,7 @@ export interface IShipment extends Document {
   currentLocation?: string;
   estimatedArrival?: Date;
   riskFactors: string[];
+  userId: mongoose.Types.ObjectId; // Add user ownership
   createdAt: Date;
   updatedAt: Date;
 }
@@ -100,16 +101,28 @@ const ShipmentSchema = new Schema<IShipment>({
     default: [],
     validate: {
       validator: function(v: string[]) {
-        return v.every(factor => factor.length <= 50);
+        return v.every(factor => factor.length <= 100);
       },
-      message: 'Each risk factor cannot exceed 50 characters'
+      message: 'Each risk factor cannot exceed 100 characters'
     }
+  },
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User ID is required'],
+    index: true // Add index for better query performance
   }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
   toObject: { virtuals: true }
 });
+
+// Add compound index for userId + trackingNumber to ensure uniqueness per user
+ShipmentSchema.index({ userId: 1, trackingNumber: 1 }, { unique: true, sparse: true });
+
+// Add index for userId + status for better query performance
+ShipmentSchema.index({ userId: 1, status: 1 });
 
 // Virtual for calculating days until delivery
 ShipmentSchema.virtual('daysUntilDelivery').get(function() {

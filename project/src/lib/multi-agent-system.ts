@@ -1,18 +1,23 @@
 // lib/multi-agent-system.ts
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { demoRiskAlerts } from './demo-data/risk-alerts';
-import { generateWhatIfSimulation } from './demo-data/what-if-scenarios';
+import { connectToDatabase } from './mongo';
+import { Shipment } from '@/models/Shipment';
+import { Product } from '@/models/Product';
+import { Supplier } from '@/models/Supplier';
+import { SupplyChain } from '@/models/SupplyChain';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export interface RiskAlert {
   id: string;
-  type: 'geopolitical' | 'weather' | 'port_closure' | 'trade_disruption' | 'labor_strike' | 'regulatory';
+  type: 'geopolitical' | 'weather' | 'port_closure' | 'trade_disruption' | 'labor_strike' | 'regulatory' | 'supplier_risk' | 'logistics_risk';
   severity: 'low' | 'medium' | 'high' | 'critical';
   region: string;
   title: string;
   description: string;
   impact: string;
+  affectedShipments: string[];
+  affectedProducts: string[];
   detectedAt: Date;
   sources: string[];
 }
@@ -51,273 +56,331 @@ export interface StrategyRecommendation {
   contingencyPlans: string[];
 }
 
+export interface SupplyChainContext {
+  shipments: any[];
+  products: any[];
+  suppliers: any[];
+  supplyChains: any[];
+  userId: string;
+}
+
 /**
  * Agent 1: Risk Monitor
- * Detects vulnerabilities from news and trade data
+ * Analyzes user's actual supply chain data to detect real risks
  */
 export class RiskMonitorAgent {
   private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  async detectRisks(region: string = 'Red Sea'): Promise<RiskAlert[]> {
-    const prompt = `
-    You are a supply chain risk monitoring AI agent. Analyze current geopolitical and trade situations for the ${region} region.
-    
-    Based on recent events, generate realistic supply chain risk alerts. Consider:
-    - Geopolitical tensions
-    - Port closures or capacity issues
-    - Weather disruptions
-    - Trade route vulnerabilities
-    - Shipping delays
-    
-    Return a JSON array of risk alerts with this structure:
-    {
-      "id": "unique_id",
-      "type": "geopolitical|weather|port_closure|trade_disruption",
-      "severity": "low|medium|high|critical", 
-      "region": "affected region",
-      "title": "Alert title",
-      "description": "Detailed description",
-      "impact": "Expected impact on supply chains",
-      "sources": ["source1", "source2"]
-    }
-    
-    Generate 3-4 realistic alerts for a company shipping electronics from China via Red Sea to Europe/US.
-    `;
-
+  async detectRisks(userId: string): Promise<RiskAlert[]> {
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      await connectToDatabase();
       
-      // Extract JSON from response
-      const jsonMatch = response.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const alerts = JSON.parse(jsonMatch[0]);
-        return alerts.map((alert: any) => ({
-          ...alert,
-          detectedAt: new Date(),
-        }));
-      }
-      
-      // Fallback with sample data
-      return this.getSampleRiskAlerts();
-    } catch (error) {
-      console.error('Risk detection error:', error);
-      return this.getSampleRiskAlerts();
-    }
-  }
+      // Get user's actual supply chain data
+      const shipments = await Shipment.find({ userId }).populate('productId');
+      const products = await Product.find({ userId });
+      const suppliers = await Supplier.find({ userId });
+      const supplyChains = await SupplyChain.find({ userId });
 
-  private getSampleRiskAlerts(): RiskAlert[] {
-    // Use demo data instead of hardcoded sample data
-    return demoRiskAlerts.map(alert => ({
-      id: alert.id,
-      type: alert.type,
-      severity: alert.severity,
-      region: alert.region,
-      title: alert.title,
-      description: alert.description,
-      impact: alert.impact,
-      detectedAt: alert.detectedAt,
-      sources: alert.sources
-    }));
+      if (shipments.length === 0) {
+        return [];
+      }
+
+      // Analyze actual data for risks
+      const risks: RiskAlert[] = [];
+
+      // Check for delayed/stuck shipments
+      const delayedShipments = shipments.filter(s => s.status === 'Delayed' || s.status === 'Stuck');
+      if (delayedShipments.length > 0) {
+        risks.push({
+          id: `risk_${Date.now()}_1`,
+          type: 'logistics_risk',
+          severity: delayedShipments.length > 2 ? 'high' : 'medium',
+          region: 'Global',
+          title: 'Shipment Delays Detected',
+          description: `${delayedShipments.length} shipments are currently delayed or stuck in transit`,
+          impact: 'Potential delivery delays and customer satisfaction issues',
+          affectedShipments: delayedShipments.map(s => s._id.toString()),
+          affectedProducts: delayedShipments.map(s => s.productId?.name || 'Unknown'),
+          detectedAt: new Date(),
+          sources: ['Shipment Status Analysis']
+        });
+      }
+
+      // Check for high-value shipments
+      const highValueShipments = shipments.filter(s => s.totalValue > 10000);
+      if (highValueShipments.length > 0) {
+        risks.push({
+          id: `risk_${Date.now()}_2`,
+          type: 'supplier_risk',
+          severity: 'medium',
+          region: 'Global',
+          title: 'High-Value Shipments in Transit',
+          description: `${highValueShipments.length} high-value shipments (over $10K) are currently in transit`,
+          impact: 'Increased financial risk and insurance requirements',
+          affectedShipments: highValueShipments.map(s => s._id.toString()),
+          affectedProducts: highValueShipments.map(s => s.productId?.name || 'Unknown'),
+          detectedAt: new Date(),
+          sources: ['Shipment Value Analysis']
+        });
+      }
+
+      // Check for supplier concentration risk
+      const supplierCounts = suppliers.reduce((acc, supplier) => {
+        acc[supplier.name] = (acc[supplier.name] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const highConcentrationSuppliers = Object.entries(supplierCounts)
+        .filter(([_, count]) => count > 3)
+        .map(([name, count]) => ({ name, count }));
+
+      if (highConcentrationSuppliers.length > 0) {
+        risks.push({
+          id: `risk_${Date.now()}_3`,
+          type: 'supplier_risk',
+          severity: 'medium',
+          region: 'Global',
+          title: 'Supplier Concentration Risk',
+          description: `High dependency on ${highConcentrationSuppliers.length} suppliers with multiple products`,
+          impact: 'Single point of failure risk if supplier issues arise',
+          affectedShipments: [],
+          affectedProducts: products.filter(p => highConcentrationSuppliers.some(s => s.name === p.supplier)).map(p => p.name),
+          detectedAt: new Date(),
+          sources: ['Supplier Analysis']
+        });
+      }
+
+      // Check for long lead time products
+      const longLeadTimeProducts = products.filter(p => p.leadTime > 60);
+      if (longLeadTimeProducts.length > 0) {
+        risks.push({
+          id: `risk_${Date.now()}_4`,
+          type: 'supplier_risk',
+          severity: 'low',
+          region: 'Global',
+          title: 'Long Lead Time Products',
+          description: `${longLeadTimeProducts.length} products have lead times over 60 days`,
+          impact: 'Reduced flexibility and increased planning requirements',
+          affectedShipments: [],
+          affectedProducts: longLeadTimeProducts.map(p => p.name),
+          detectedAt: new Date(),
+          sources: ['Product Lead Time Analysis']
+        });
+      }
+
+      return risks;
+    } catch (error) {
+      console.error('Error detecting risks:', error);
+      return [];
+    }
   }
 }
 
 /**
- * Agent 2: Impact Simulator  
- * Calculates disruption impact on shipments and costs
+ * Agent 2: Impact Simulator
+ * Simulates impact of disruptions on user's actual shipments
  */
 export class ImpactSimulatorAgent {
   private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  async simulateDisruption(alerts: RiskAlert[], currentRoute: RouteInfo): Promise<SimulationResult> {
-    const prompt = `
-    You are a supply chain impact simulation AI agent. Calculate the impact of these risk alerts on a shipping route.
-    
-    Current Route: ${JSON.stringify(currentRoute, null, 2)}
-    Risk Alerts: ${JSON.stringify(alerts, null, 2)}
-    
-    Calculate and return a JSON object with:
-    1. Disruption impact (delay days, additional costs, affected shipments, risk level)
-    2. 3-4 alternative routes with pros/cons and risk reduction percentages
-    
-    Use this structure:
-    {
-      "disruptionImpact": {
-        "delayDays": number,
-        "additionalCost": number,
-        "affectedShipments": number,
-        "riskLevel": "low|medium|high|critical"
-      },
-      "alternatives": [
-        {
-          "origin": "origin port",
-          "transit": ["transit points"],
-          "destination": "destination port", 
-          "distance": number,
-          "duration": number,
-          "cost": number,
-          "recommendation": "brief description",
-          "pros": ["advantage1", "advantage2"],
-          "cons": ["disadvantage1", "disadvantage2"],
-          "riskReduction": number (0-100)
-        }
-      ]
-    }
-    
-    Focus on realistic shipping routes for electronics from China to Europe/US.
-    `;
-
+  async simulateImpact(userId: string, scenario: string): Promise<SimulationResult> {
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      await connectToDatabase();
       
-      // Extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const simulation = JSON.parse(jsonMatch[0]);
+      // Get user's actual shipments
+      const shipments = await Shipment.find({ userId }).populate('productId');
+      
+      if (shipments.length === 0) {
         return {
-          originalRoute: currentRoute,
-          disruptionImpact: simulation.disruptionImpact,
-          alternatives: simulation.alternatives
+          originalRoute: {
+            origin: 'N/A',
+            transit: [],
+            destination: 'N/A',
+            distance: 0,
+            duration: 0,
+            cost: 0
+          },
+          disruptionImpact: {
+            delayDays: 0,
+            additionalCost: 0,
+            affectedShipments: 0,
+            riskLevel: 'low'
+          },
+          alternatives: []
         };
       }
-      
-      return this.getSampleSimulation(currentRoute);
-    } catch (error) {
-      console.error('Simulation error:', error);
-      return this.getSampleSimulation(currentRoute);
-    }
-  }
 
-  private getSampleSimulation(originalRoute: RouteInfo): SimulationResult {
-    return {
-      originalRoute,
-      disruptionImpact: {
-        delayDays: 12,
-        additionalCost: 185000,
-        affectedShipments: 24,
-        riskLevel: 'high'
-      },
-      alternatives: [
-        {
-          origin: 'Shanghai, China',
-          transit: ['Cape of Good Hope', 'West Africa'],
-          destination: 'Rotterdam, Netherlands',
-          distance: 16800,
-          duration: 35,
-          cost: 485000,
-          recommendation: 'Cape Route - Longer but safer alternative',
-          pros: ['Avoids Red Sea tensions', 'More predictable timing', 'Lower risk profile'],
-          cons: ['15 days longer transit', '45% higher costs', 'Higher fuel consumption'],
-          riskReduction: 85
+      // Calculate baseline metrics
+      const totalValue = shipments.reduce((sum, s) => sum + s.totalValue, 0);
+      const avgDeliveryTime = shipments.reduce((sum, s) => {
+        const expected = new Date(s.expectedDelivery);
+        const created = new Date(s.createdAt);
+        return sum + Math.ceil((expected.getTime() - created.getTime()) / (1000 * 60 * 60 * 24));
+      }, 0) / shipments.length;
+
+      // Simulate impact based on scenario
+      let delayDays = 0;
+      let additionalCost = 0;
+      let affectedShipments = 0;
+
+      switch (scenario.toLowerCase()) {
+        case 'port congestion':
+          delayDays = 7;
+          additionalCost = totalValue * 0.15;
+          affectedShipments = shipments.filter(s => s.shippingMethod === 'Sea').length;
+          break;
+        case 'weather disruption':
+          delayDays = 3;
+          additionalCost = totalValue * 0.08;
+          affectedShipments = shipments.length;
+          break;
+        case 'supplier issue':
+          delayDays = 14;
+          additionalCost = totalValue * 0.25;
+          affectedShipments = shipments.length;
+          break;
+        case 'customs delay':
+          delayDays = 5;
+          additionalCost = totalValue * 0.12;
+          affectedShipments = shipments.filter(s => s.status === 'Stuck').length;
+          break;
+        default:
+          delayDays = 5;
+          additionalCost = totalValue * 0.10;
+          affectedShipments = Math.ceil(shipments.length * 0.3);
+      }
+
+      const riskLevel = additionalCost > totalValue * 0.2 ? 'high' : 
+                       additionalCost > totalValue * 0.1 ? 'medium' : 'low';
+
+      return {
+        originalRoute: {
+          origin: 'Multiple Origins',
+          transit: ['Various Routes'],
+          destination: 'Multiple Destinations',
+          distance: 0,
+          duration: avgDeliveryTime,
+          cost: totalValue
         },
-        {
-          origin: 'Shanghai, China', 
-          transit: ['Trans-Pacific', 'Panama Canal'],
-          destination: 'Los Angeles, USA',
-          distance: 11200,
-          duration: 18,
-          cost: 320000,
-          recommendation: 'Pacific Route - Fastest alternative',
-          pros: ['Shortest transit time', 'Established route', 'Lower costs'],
-          cons: ['Different destination market', 'Limited to US/West Coast'],
-          riskReduction: 75
-        }
-      ]
-    };
+        disruptionImpact: {
+          delayDays,
+          additionalCost: Math.round(additionalCost),
+          affectedShipments,
+          riskLevel
+        },
+        alternatives: [
+          {
+            origin: 'Alternative Suppliers',
+            transit: ['Diversified Routes'],
+            destination: 'Same Destinations',
+            distance: 0,
+            duration: avgDeliveryTime + 3,
+            cost: totalValue * 1.1,
+            recommendation: 'Diversify supplier base and routes',
+            pros: ['Reduced risk', 'Better resilience'],
+            cons: ['Higher costs', 'Longer lead times'],
+            riskReduction: 0.6
+          }
+        ]
+      };
+    } catch (error) {
+      console.error('Error simulating impact:', error);
+      throw error;
+    }
   }
 }
 
 /**
  * Agent 3: Strategy Recommender
- * Suggests resilient alternatives and contingency plans
+ * Provides recommendations based on user's actual supply chain data
  */
 export class StrategyRecommenderAgent {
   private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  async generateStrategies(
-    alerts: RiskAlert[], 
-    simulation: SimulationResult
-  ): Promise<StrategyRecommendation> {
-    const prompt = `
-    You are a strategic supply chain AI agent. Based on these risk alerts and simulation results, 
-    provide actionable recommendations for supply chain resilience.
-    
-    Risk Alerts: ${JSON.stringify(alerts, null, 2)}
-    Simulation: ${JSON.stringify(simulation.disruptionImpact, null, 2)}
-    
-    Generate strategic recommendations in 4 categories:
-    1. Immediate actions (next 24-48 hours)
-    2. Short-term strategies (next 2-4 weeks)
-    3. Long-term resilience building (3-6 months)
-    4. Contingency plans for future disruptions
-    
-    Return as JSON:
-    {
-      "immediate": ["action1", "action2"],
-      "shortTerm": ["strategy1", "strategy2"], 
-      "longTerm": ["plan1", "plan2"],
-      "contingencyPlans": ["backup1", "backup2"]
-    }
-    
-    Focus on practical, business-ready recommendations for an electronics company.
-    `;
-
+  async generateRecommendations(userId: string): Promise<StrategyRecommendation> {
     try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      await connectToDatabase();
       
-      // Extract JSON from response
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
-      }
-      
-      return this.getSampleStrategies();
-    } catch (error) {
-      console.error('Strategy generation error:', error);
-      return this.getSampleStrategies();
-    }
-  }
+      // Get user's actual data
+      const shipments = await Shipment.find({ userId });
+      const products = await Product.find({ userId });
+      const suppliers = await Supplier.find({ userId });
 
-  private getSampleStrategies(): StrategyRecommendation {
-    return {
-      immediate: [
-        'Contact logistics partners to assess current shipment status',
-        'Notify customers about potential delays and provide updates',
-        'Activate alternative shipping routes for critical orders',
-        'Review inventory levels and prioritize essential components'
-      ],
-      shortTerm: [
-        'Diversify shipping routes to reduce single-point-of-failure',
-        'Establish partnerships with multiple freight forwarders',
-        'Increase safety stock for critical components by 20-30%',
-        'Implement real-time shipment tracking across all routes'
-      ],
-      longTerm: [
-        'Build supplier diversification strategy across multiple regions',
-        'Invest in predictive analytics for early risk detection', 
-        'Develop regional distribution centers to reduce shipping distances',
-        'Create strategic partnerships with backup suppliers'
-      ],
-      contingencyPlans: [
-        'Maintain 90-day inventory buffer for top 20% of products',
-        'Pre-negotiate emergency shipping contracts with premium carriers',
-        'Establish air freight partnerships for critical component rush orders',
-        'Create supplier scorecards including geopolitical risk assessments'
-      ]
-    };
+      const recommendations: StrategyRecommendation = {
+        immediate: [],
+        shortTerm: [],
+        longTerm: [],
+        contingencyPlans: []
+      };
+
+      // Immediate actions based on current status
+      const stuckShipments = shipments.filter(s => s.status === 'Stuck');
+      if (stuckShipments.length > 0) {
+        recommendations.immediate.push(
+          'Contact customs brokers for stuck shipments',
+          'Review documentation for clearance issues',
+          'Communicate delays to customers'
+        );
+      }
+
+      const delayedShipments = shipments.filter(s => s.status === 'Delayed');
+      if (delayedShipments.length > 0) {
+        recommendations.immediate.push(
+          'Contact shipping carriers for status updates',
+          'Assess impact on customer commitments',
+          'Prepare delay notifications'
+        );
+      }
+
+      // Short-term strategies
+      if (suppliers.length < 3) {
+        recommendations.shortTerm.push(
+          'Diversify supplier base to reduce concentration risk',
+          'Establish relationships with backup suppliers',
+          'Implement supplier performance monitoring'
+        );
+      }
+
+      if (shipments.filter(s => s.totalValue > 10000).length > 0) {
+        recommendations.shortTerm.push(
+          'Review insurance coverage for high-value shipments',
+          'Implement additional tracking and security measures',
+          'Establish emergency response procedures'
+        );
+      }
+
+      // Long-term strategies
+      recommendations.longTerm.push(
+        'Implement supply chain risk management framework',
+        'Develop supplier relationship management program',
+        'Establish real-time monitoring and alerting systems',
+        'Create business continuity plans'
+      );
+
+      // Contingency plans
+      recommendations.contingencyPlans.push(
+        'Maintain safety stock for critical products',
+        'Identify alternative transportation routes',
+        'Establish emergency supplier agreements',
+        'Create customer communication protocols'
+      );
+
+      return recommendations;
+    } catch (error) {
+      console.error('Error generating recommendations:', error);
+      throw error;
+    }
   }
 }
 
 /**
- * Multi-Agent Orchestrator
- * Coordinates all three agents for comprehensive analysis
+ * Main Multi-Agent System
+ * Coordinates all agents to provide comprehensive analysis
  */
-export class MultiAgentOrchestrator {
-  private riskMonitor: RiskMonitorAgent;
-  private impactSimulator: ImpactSimulatorAgent;
-  private strategyRecommender: StrategyRecommenderAgent;
+export class MultiAgentSystem {
+  public riskMonitor: RiskMonitorAgent;
+  public impactSimulator: ImpactSimulatorAgent;
+  public strategyRecommender: StrategyRecommenderAgent;
 
   constructor() {
     this.riskMonitor = new RiskMonitorAgent();
@@ -325,83 +388,47 @@ export class MultiAgentOrchestrator {
     this.strategyRecommender = new StrategyRecommenderAgent();
   }
 
-  async analyzeSupplyChain(region: string = 'Red Sea') {
+  async analyzeSupplyChain(userId: string) {
     try {
-      // Sample route data for electronics company
-      const currentRoute: RouteInfo = {
-        origin: 'Shanghai, China',
-        transit: ['Singapore', 'Suez Canal', 'Red Sea'],
-        destination: 'Rotterdam, Netherlands',
-        distance: 11500,
-        duration: 28,
-        cost: 340000
-      };
-
-      console.log('🤖 Agent 1: Detecting risks...');
-      const risks = await this.riskMonitor.detectRisks(region);
-
-      console.log('🤖 Agent 2: Simulating impact...');
-      const simulation = await this.impactSimulator.simulateDisruption(risks, currentRoute);
-
-      console.log('🤖 Agent 3: Generating strategies...');
-      const strategies = await this.strategyRecommender.generateStrategies(risks, simulation);
+      // Run all agents in parallel
+      const [risks, recommendations] = await Promise.all([
+        this.riskMonitor.detectRisks(userId),
+        this.strategyRecommender.generateRecommendations(userId)
+      ]);
 
       return {
         risks,
-        simulation,
-        strategies,
-        analysisTimestamp: new Date(),
-        companyProfile: {
-          name: 'TechFlow Electronics Ltd',
-          industry: 'Consumer Electronics',
-          primaryMarkets: ['Europe', 'North America'],
-          monthlyShipments: 150,
-          averageOrderValue: 75000
+        recommendations,
+        analysisTimestamp: new Date().toISOString(),
+        summary: {
+          totalRisks: risks.length,
+          highRiskCount: risks.filter(r => r.severity === 'high' || r.severity === 'critical').length,
+          recommendationsCount: recommendations.immediate.length + recommendations.shortTerm.length + recommendations.longTerm.length
         }
       };
     } catch (error) {
-      console.error('Multi-agent analysis error:', error);
+      console.error('Error in multi-agent analysis:', error);
       throw error;
     }
   }
 
-  async runWhatIfSimulation(scenario: string) {
+  async runWhatIfSimulation(userId: string, scenario: string) {
     try {
-      // Use demo data for reliable simulation results
-      const simulation = generateWhatIfSimulation(scenario);
-      
-      // Optionally enhance with AI if available
-      if (process.env.GEMINI_API_KEY) {
-        try {
-          const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-          const prompt = `
-            Enhance this supply chain what-if simulation with additional insights:
-            
-            Scenario: "${scenario}"
-            Current Analysis: ${JSON.stringify(simulation, null, 2)}
-            
-            Provide additional recommendations or insights that could be valuable for this scenario.
-            Focus on practical, actionable advice for an electronics company.
-          `;
-          
-          const result = await model.generateContent(prompt);
-          const aiEnhancement = result.response.text();
-          
-          // Add AI enhancement to the simulation
-          return {
-            ...simulation,
-            aiEnhancement: aiEnhancement.substring(0, 500) + '...' // Limit length
-          };
-        } catch (aiError) {
-          console.log('AI enhancement failed, using demo data only:', aiError);
-        }
-      }
-      
-      return simulation;
+      const impact = await this.impactSimulator.simulateImpact(userId, scenario);
+      const recommendations = await this.strategyRecommender.generateRecommendations(userId);
+
+      return {
+        scenario,
+        impact,
+        recommendations,
+        timestamp: new Date()
+      };
     } catch (error) {
-      console.error('What-if simulation error:', error);
-      // Fallback to basic simulation
-      return generateWhatIfSimulation(scenario);
+      console.error('Error in what-if simulation:', error);
+      throw error;
     }
   }
 }
+
+// Export singleton instance
+export const multiAgentSystem = new MultiAgentSystem();

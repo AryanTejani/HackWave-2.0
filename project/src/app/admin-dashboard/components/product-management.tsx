@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { 
   Package, 
   Plus, 
@@ -12,7 +13,8 @@ import {
   Building,
   Star,
   AlertCircle,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -26,10 +28,16 @@ interface Product {
   category: string;
   supplier: string;
   origin: string;
+  description: string;
   unitCost: number;
   leadTime: number;
+  minOrderQuantity: number;
+  maxOrderQuantity: number;
   riskLevel: 'low' | 'medium' | 'high';
   certifications: string[];
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface Supplier {
@@ -47,42 +55,120 @@ interface Supplier {
 }
 
 export function ProductManagement() {
+  const { data: session, status } = useSession();
   const [products, setProducts] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState<string | null>(null);
+  const [deletingSupplier, setDeletingSupplier] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch products and suppliers in parallel
-        const [productsRes, suppliersRes] = await Promise.all([
-          fetch('/api/products'),
-          fetch('/api/suppliers')
-        ]);
+    // Only fetch data if user is authenticated
+    if (status === 'authenticated' && session) {
+      fetchData();
+    } else if (status === 'unauthenticated') {
+      setError('User not authenticated');
+      setLoading(false);
+    }
+  }, [status, session]);
 
-        if (productsRes.ok) {
-          const productsResult = await productsRes.json();
-          const productsData = productsResult.success ? productsResult.data : [];
-          setProducts(productsData);
-        }
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch products and suppliers in parallel
+      const [productsRes, suppliersRes] = await Promise.all([
+        fetch('/api/products', { credentials: 'include' }),
+        fetch('/api/suppliers', { credentials: 'include' })
+      ]);
 
-        if (suppliersRes.ok) {
-          const suppliersResult = await suppliersRes.json();
-          const suppliersData = suppliersResult.success ? suppliersResult.data : [];
-          setSuppliers(suppliersData);
-        }
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
+      if (productsRes.ok) {
+        const productsResult = await productsRes.json();
+        const productsData = productsResult.success ? productsResult.data : [];
+        setProducts(productsData);
+      } else {
+        const errorData = await productsRes.json();
+        setError(`Products API error: ${productsRes.status} - ${errorData.error || 'Unknown error'}`);
       }
-    };
 
-    fetchData();
-  }, []);
+      if (suppliersRes.ok) {
+        const suppliersResult = await suppliersRes.json();
+        const suppliersData = suppliersResult.success ? suppliersResult.data : [];
+        setSuppliers(suppliersData);
+      } else {
+        const errorData = await suppliersRes.json();
+        setError(`Suppliers API error: ${suppliersRes.status} - ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError(`Network error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteProduct = async (productId: string, productName: string) => {
+    if (!confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingProduct(productId);
+      
+      const response = await fetch(`/api/products?id=${productId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove the product from the local state
+        setProducts(prev => prev.filter(p => p._id !== productId));
+        alert('Product deleted successfully!');
+      } else {
+        alert(`Failed to delete product: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      alert('Failed to delete product. Please try again.');
+    } finally {
+      setDeletingProduct(null);
+    }
+  };
+
+  const handleDeleteSupplier = async (supplierId: string, supplierName: string) => {
+    if (!confirm(`Are you sure you want to delete "${supplierName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingSupplier(supplierId);
+      
+      const response = await fetch(`/api/suppliers?id=${supplierId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove the supplier from the local state
+        setSuppliers(prev => prev.filter(s => s._id !== supplierId));
+        alert('Supplier deleted successfully!');
+      } else {
+        alert(`Failed to delete supplier: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting supplier:', error);
+      alert('Failed to delete supplier. Please try again.');
+    } finally {
+      setDeletingSupplier(null);
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -198,6 +284,19 @@ export function ProductManagement() {
         </Card>
       </div>
 
+      {/* Error Display */}
+      {error && (
+        <Card className="bg-red-50 border-red-200">
+          <CardHeader>
+            <CardTitle className="text-red-800">Error</CardTitle>
+            <CardDescription>There was an issue loading the data</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-red-700">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Content */}
       <Tabs defaultValue="products" className="w-full">
         <TabsList className="grid w-full grid-cols-2">
@@ -236,11 +335,25 @@ export function ProductManagement() {
                           <CardTitle className="text-sm">{product.name}</CardTitle>
                           <CardDescription className="text-xs">{product.category}</CardDescription>
                         </div>
-                        <Badge 
-                          variant={product.riskLevel === 'high' ? 'destructive' : product.riskLevel === 'medium' ? 'secondary' : 'default'}
-                        >
-                          {product.riskLevel}
-                        </Badge>
+                        <div className="flex items-center space-x-2">
+                          <Badge 
+                            variant={product.riskLevel === 'high' ? 'destructive' : product.riskLevel === 'medium' ? 'secondary' : 'default'}
+                          >
+                            {product.riskLevel}
+                          </Badge>
+                          <button
+                            onClick={() => handleDeleteProduct(product._id, product.name)}
+                            disabled={deletingProduct === product._id}
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            title="Delete product"
+                          >
+                            {deletingProduct === product._id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
@@ -286,11 +399,25 @@ export function ProductManagement() {
                           <CardTitle className="text-sm">{supplier.name}</CardTitle>
                           <CardDescription className="text-xs">{supplier.location}, {supplier.country}</CardDescription>
                         </div>
-                        <Badge 
-                          variant={supplier.status === 'active' ? 'default' : supplier.status === 'pending' ? 'secondary' : 'outline'}
-                        >
-                          {supplier.status}
-                        </Badge>
+                        <div className="flex items-center space-x-2">
+                          <Badge 
+                            variant={supplier.status === 'active' ? 'default' : supplier.status === 'pending' ? 'secondary' : 'outline'}
+                          >
+                            {supplier.status}
+                          </Badge>
+                          <button
+                            onClick={() => handleDeleteSupplier(supplier._id, supplier.name)}
+                            disabled={deletingSupplier === supplier._id}
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            title="Delete supplier"
+                          >
+                            {deletingSupplier === supplier._id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">

@@ -16,6 +16,7 @@ export interface ISupplier extends Document {
   minimumOrder: number;
   maximumOrder: number;
   specialties: string[];
+  userId: mongoose.Types.ObjectId; // Add user ownership
   createdAt: Date;
   updatedAt: Date;
 }
@@ -102,17 +103,24 @@ const supplierSchema = new Schema<ISupplier>({
   specialties: [{
     type: String,
     trim: true
-  }]
+  }],
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'User ID is required'],
+    index: true // Add index for better query performance
+  }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
-// Indexes for better query performance
-supplierSchema.index({ name: 1 });
-supplierSchema.index({ country: 1 });
-supplierSchema.index({ status: 1 });
-supplierSchema.index({ riskLevel: 1 });
-supplierSchema.index({ rating: -1 });
+// Add compound index for userId + name to ensure uniqueness per user
+supplierSchema.index({ userId: 1, name: 1 }, { unique: true });
+
+// Add index for userId + status for better query performance
+supplierSchema.index({ userId: 1, status: 1 });
 
 // Virtual for full address
 supplierSchema.virtual('fullAddress').get(function() {
@@ -127,8 +135,4 @@ supplierSchema.virtual('productsCount', {
   count: true
 });
 
-// Ensure virtuals are serialized
-supplierSchema.set('toJSON', { virtuals: true });
-supplierSchema.set('toObject', { virtuals: true });
-
-export const Supplier = mongoose.models.Supplier || mongoose.model<ISupplier>('Supplier', supplierSchema);
+export const Supplier = mongoose.models.Supplier || mongoose.model('Supplier', supplierSchema);
