@@ -273,8 +273,8 @@ export function DataOnboarding() {
               <div className="space-y-3">
                 {/* File Input */}
                 <div className="relative">
-                  <input
-                    ref={el => fileInputRefs.current[key] = el}
+                    <input
+                    ref={el => { fileInputRefs.current[key] = el; }}
                     type="file"
                     accept=".xlsx,.xls,.csv"
                     onChange={(e) => handleFileSelect(key, e.target.files)}
