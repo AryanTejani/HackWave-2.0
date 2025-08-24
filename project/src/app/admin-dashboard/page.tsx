@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
 import { SiteHeader } from "./components/site-header";
-import { DashboardOverview } from "./components/dashboard-overview";
+import DashboardOverview from "./components/dashboard-overview";
 import { LiveData } from "./components/live-data";
 import { ShipmentManagement } from "./components/shipment-management";
 import { AIIntelligence } from "./components/ai-intelligence";

@@ -164,17 +164,20 @@ function generateMappingPrompt(dataType: string, jsonData: any[]): string {
     `,
     shipments: `
       {
-        "shipmentId": "string (required) - map from Shipment ID, ID, Tracking Number, or generate unique ID",
+        "productId": "string (required) - map from Product ID, Product, or generate a reference ID",
         "origin": "string (required) - map from Origin, From, Source, or similar",
         "destination": "string (required) - map from Destination, To, Delivery Address, or similar",
-        "status": "string (enum: 'pending', 'in-transit', 'delivered', 'delayed') - map from Status, Shipment Status, or default to 'pending'",
-        "estimatedDelivery": "string (ISO date) - map from Estimated Delivery, ETA, or generate future date",
+        "status": "string (enum: 'On-Time', 'Delayed', 'Stuck', 'Delivered') - map from Status, Shipment Status, or default to 'On-Time'",
+        "expectedDelivery": "string (ISO date) - map from Expected Delivery, ETA, Delivery Date, or generate future date",
         "actualDelivery": "string (ISO date, optional) - map from Actual Delivery, Delivered Date, or null",
-        "carrier": "string (required) - map from Carrier, Shipping Company, or default to 'Standard Carrier'",
-        "trackingNumber": "string (required) - map from Tracking Number, Tracking ID, or generate unique tracking",
-        "items": "array of objects with product details - map from Items, Products, or create from available data",
-        "totalValue": "number (required, min 0) - map from Total Value, Value, Amount, or default to 1000",
-        "shippingCost": "number (required, min 0) - map from Shipping Cost, Cost, Freight Cost, or default to 100"
+        "trackingNumber": "string (optional) - map from Tracking Number, Tracking ID, or generate unique tracking",
+        "quantity": "number (required, min 1) - map from Quantity, Qty, Amount, or default to 1",
+        "totalValue": "number (required, min 0) - map from Total Value, Value, Amount, Price, or default to 1000",
+        "shippingMethod": "string (enum: 'Air', 'Sea', 'Land', 'Express') - map from Shipping Method, Method, Transport, or default to 'Land'",
+        "carrier": "string (required) - map from Carrier, Shipping Company, Transport Company, or default to 'Standard Carrier'",
+        "currentLocation": "string (optional) - map from Current Location, Location, or null",
+        "estimatedArrival": "string (ISO date, optional) - map from Estimated Arrival, ETA, or null",
+        "riskFactors": "array of strings (optional) - map from Risk Factors, Risks, or empty array"
       }
     `
   };
@@ -293,14 +296,29 @@ function validateMappedData(dataType: string, data: any[]): { isValid: boolean; 
         }
         break;
       case 'shipments':
-        if (!record.shipmentId || typeof record.shipmentId !== 'string') {
-          errors.push(`Record ${index}: Invalid or missing shipmentId`);
+        if (!record.productId || typeof record.productId !== 'string') {
+          errors.push(`Record ${index}: Invalid or missing productId`);
         }
         if (!record.origin || typeof record.origin !== 'string') {
           errors.push(`Record ${index}: Invalid or missing origin`);
         }
         if (!record.destination || typeof record.destination !== 'string') {
           errors.push(`Record ${index}: Invalid or missing destination`);
+        }
+        if (!record.status || !['On-Time', 'Delayed', 'Stuck', 'Delivered'].includes(record.status)) {
+          errors.push(`Record ${index}: Invalid status - must be On-Time, Delayed, Stuck, or Delivered`);
+        }
+        if (!record.expectedDelivery || typeof record.expectedDelivery !== 'string') {
+          errors.push(`Record ${index}: Invalid or missing expectedDelivery`);
+        }
+        if (typeof record.quantity !== 'number' || record.quantity < 1) {
+          errors.push(`Record ${index}: Invalid quantity - expected number >= 1, got ${typeof record.quantity}: ${record.quantity}`);
+        }
+        if (!record.shippingMethod || !['Air', 'Sea', 'Land', 'Express'].includes(record.shippingMethod)) {
+          errors.push(`Record ${index}: Invalid shippingMethod - must be Air, Sea, Land, or Express`);
+        }
+        if (!record.carrier || typeof record.carrier !== 'string') {
+          errors.push(`Record ${index}: Invalid or missing carrier`);
         }
         if (typeof record.totalValue !== 'number' || record.totalValue < 0) {
           errors.push(`Record ${index}: Invalid totalValue - expected number >= 0, got ${typeof record.totalValue}: ${record.totalValue}`);
@@ -420,17 +438,20 @@ function transformRawDataToSchema(dataType: string, rawData: any[]): any[] {
         break;
         
       case 'shipments':
-        transformed.shipmentId = record['Shipment ID'] || record['ID'] || record['Tracking Number'] || `SHIP_${index + 1}`;
+        transformed.productId = record['Product ID'] || record['Product'] || `PRODUCT_${index + 1}`;
         transformed.origin = record['Origin'] || record['From'] || record['Source'] || 'Unknown';
         transformed.destination = record['Destination'] || record['To'] || record['Delivery Address'] || 'Unknown';
-        transformed.status = record['Status'] || record['Shipment Status'] || 'pending';
-        transformed.estimatedDelivery = record['Estimated Delivery'] || record['ETA'] || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        transformed.status = record['Status'] || record['Shipment Status'] || 'On-Time';
+        transformed.expectedDelivery = record['Expected Delivery'] || record['ETA'] || record['Delivery Date'] || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         transformed.actualDelivery = record['Actual Delivery'] || record['Delivered Date'] || null;
-        transformed.carrier = record['Carrier'] || record['Shipping Company'] || 'Standard Carrier';
         transformed.trackingNumber = record['Tracking Number'] || record['Tracking ID'] || `TRK_${index + 1}`;
-        transformed.items = [];
-        transformed.totalValue = parseFloat(record['Total Value'] || record['Value'] || record['Amount'] || '1000');
-        transformed.shippingCost = parseFloat(record['Shipping Cost'] || record['Cost'] || record['Freight Cost'] || '100');
+        transformed.quantity = parseFloat(record['Quantity'] || record['Qty'] || record['Amount'] || '1');
+        transformed.totalValue = parseFloat(record['Total Value'] || record['Value'] || record['Amount'] || record['Price'] || '1000');
+        transformed.shippingMethod = record['Shipping Method'] || record['Method'] || record['Transport'] || 'Land';
+        transformed.carrier = record['Carrier'] || record['Shipping Company'] || record['Transport Company'] || 'Standard Carrier';
+        transformed.currentLocation = record['Current Location'] || record['Location'] || null;
+        transformed.estimatedArrival = record['Estimated Arrival'] || record['ETA'] || null;
+        transformed.riskFactors = [];
         break;
     }
     
