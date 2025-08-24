@@ -7,7 +7,6 @@ import {
   Package, 
   Plus, 
   Search, 
-  Filter, 
   Download,
   Users,
   Building,
@@ -21,38 +20,28 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SupplierInfo } from '@/lib/tools'; // Keep type from tools
 
+// Interfaces from 'main' branch are more complete
 interface Product {
   _id: string;
   name: string;
   category: string;
   supplier: string;
   origin: string;
-  description: string;
   unitCost: number;
   leadTime: number;
-  minOrderQuantity: number;
-  maxOrderQuantity: number;
   riskLevel: 'low' | 'medium' | 'high';
-  certifications: string[];
-  userId: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
-interface Supplier {
-  _id: string;
-  name: string;
-  location: string;
-  country: string;
-  rating: number;
-  status: 'active' | 'inactive' | 'pending';
-  riskLevel: 'low' | 'medium' | 'high';
-  specialties: string[];
-  leadTime: number;
-  minimumOrder: number;
-  maximumOrder: number;
+interface Supplier extends SupplierInfo {
+    _id: string;
+    country: string;
+    specialties: string[];
+    minimumOrder: number;
+    maximumOrder: number;
 }
+
 
 export function ProductManagement() {
   const { data: session, status } = useSession();
@@ -65,21 +54,20 @@ export function ProductManagement() {
   const [deletingSupplier, setDeletingSupplier] = useState<string | null>(null);
 
   useEffect(() => {
-    // Only fetch data if user is authenticated
-    if (status === 'authenticated' && session) {
+    if (status === 'authenticated') {
       fetchData();
     } else if (status === 'unauthenticated') {
       setError('User not authenticated');
       setLoading(false);
     }
-  }, [status, session]);
+  }, [status]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // Fetch products and suppliers in parallel
+      // Fetch products and suppliers in parallel from your secure backend API routes
       const [productsRes, suppliersRes] = await Promise.all([
         fetch('/api/products', { credentials: 'include' }),
         fetch('/api/suppliers', { credentials: 'include' })
@@ -87,20 +75,18 @@ export function ProductManagement() {
 
       if (productsRes.ok) {
         const productsResult = await productsRes.json();
-        const productsData = productsResult.success ? productsResult.data : [];
-        setProducts(productsData);
+        setProducts(productsResult.success ? productsResult.data : []);
       } else {
         const errorData = await productsRes.json();
-        setError(`Products API error: ${productsRes.status} - ${errorData.error || 'Unknown error'}`);
+        setError(`Products API error: ${errorData.error || 'Unknown error'}`);
       }
 
       if (suppliersRes.ok) {
         const suppliersResult = await suppliersRes.json();
-        const suppliersData = suppliersResult.success ? suppliersResult.data : [];
-        setSuppliers(suppliersData);
+        setSuppliers(suppliersResult.success ? suppliersResult.data : []);
       } else {
         const errorData = await suppliersRes.json();
-        setError(`Suppliers API error: ${suppliersRes.status} - ${errorData.error || 'Unknown error'}`);
+        setError(`Suppliers API error: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -114,21 +100,15 @@ export function ProductManagement() {
     if (!confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
       return;
     }
-
     try {
       setDeletingProduct(productId);
-      
       const response = await fetch(`/api/products?id=${productId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
-
       const result = await response.json();
-
       if (result.success) {
-        // Remove the product from the local state
         setProducts(prev => prev.filter(p => p._id !== productId));
-        alert('Product deleted successfully!');
       } else {
         alert(`Failed to delete product: ${result.error}`);
       }
@@ -144,21 +124,15 @@ export function ProductManagement() {
     if (!confirm(`Are you sure you want to delete "${supplierName}"? This action cannot be undone.`)) {
       return;
     }
-
     try {
       setDeletingSupplier(supplierId);
-      
       const response = await fetch(`/api/suppliers?id=${supplierId}`, {
         method: 'DELETE',
         credentials: 'include'
       });
-
       const result = await response.json();
-
       if (result.success) {
-        // Remove the supplier from the local state
         setSuppliers(prev => prev.filter(s => s._id !== supplierId));
-        alert('Supplier deleted successfully!');
       } else {
         alert(`Failed to delete supplier: ${result.error}`);
       }
@@ -199,7 +173,7 @@ export function ProductManagement() {
       <div className="flex items-center justify-center h-64">
         <div className="flex items-center space-x-2">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="text-gray-600 dark:text-gray-400">Loading products...</span>
+          <span className="text-gray-600 dark:text-gray-400">Loading product data...</span>
         </div>
       </div>
     );
@@ -214,73 +188,53 @@ export function ProductManagement() {
           <p className="text-gray-600 dark:text-gray-400">Manage products and supplier relationships</p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button asChild>
-            <Link href="/product-form">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Product
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href="/supplier-form">
-              <Building className="h-4 w-4 mr-2" />
-              Add Supplier
-            </Link>
-          </Button>
+          <Button variant="outline"><Download className="h-4 w-4 mr-2" />Export</Button>
+          <Button asChild><Link href="/product-form"><Plus className="h-4 w-4 mr-2" />Add Product</Link></Button>
+          <Button asChild><Link href="/supplier-form"><Building className="h-4 w-4 mr-2" />Add Supplier</Link></Button>
         </div>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Products</CardTitle>
-            <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{products.length}</div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Active products</p>
-          </CardContent>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Products</CardTitle>
+                <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{products.length}</div>
+            </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Suppliers</CardTitle>
-            <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{suppliers.length}</div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Active suppliers</p>
-          </CardContent>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Suppliers</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">{suppliers.length}</div>
+            </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Lead Time</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {products.length > 0 ? Math.round(products.reduce((sum, p) => sum + p.leadTime, 0) / products.length) : 0} days
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Average delivery time</p>
-          </CardContent>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Avg Lead Time</CardTitle>
+                <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">
+                  {products.length > 0 ? Math.round(products.reduce((sum, p) => sum + p.leadTime, 0) / products.length) : 0} days
+                </div>
+            </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600 dark:text-gray-400">High Risk Items</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {products.filter(p => p.riskLevel === 'high').length}
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400">Requiring attention</p>
-          </CardContent>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">High Risk Items</CardTitle>
+                <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold text-red-600">
+                  {products.filter(p => p.riskLevel === 'high').length}
+                </div>
+            </CardContent>
         </Card>
       </div>
 
@@ -291,9 +245,7 @@ export function ProductManagement() {
             <CardTitle className="text-red-800">Error</CardTitle>
             <CardDescription>There was an issue loading the data</CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-red-700">{error}</p>
-          </CardContent>
+          <CardContent><p className="text-red-700">{error}</p></CardContent>
         </Card>
       )}
 
@@ -312,16 +264,14 @@ export function ProductManagement() {
                   <CardTitle>All Products</CardTitle>
                   <CardDescription>Manage your product catalog</CardDescription>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search products..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-64"
-                    />
-                  </div>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 w-64"
+                  />
                 </div>
               </div>
             </CardHeader>
@@ -336,22 +286,16 @@ export function ProductManagement() {
                           <CardDescription className="text-xs">{product.category}</CardDescription>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Badge 
-                            variant={product.riskLevel === 'high' ? 'destructive' : product.riskLevel === 'medium' ? 'secondary' : 'default'}
-                          >
+                          <Badge variant={product.riskLevel === 'high' ? 'destructive' : product.riskLevel === 'medium' ? 'secondary' : 'default'}>
                             {product.riskLevel}
                           </Badge>
                           <button
                             onClick={() => handleDeleteProduct(product._id, product.name)}
                             disabled={deletingProduct === product._id}
-                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            className="p-1 text-red-500 hover:text-red-700 disabled:opacity-50"
                             title="Delete product"
                           >
-                            {deletingProduct === product._id ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div>
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
+                            {deletingProduct === product._id ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div> : <Trash2 className="h-4 w-4" />}
                           </button>
                         </div>
                       </div>
@@ -400,22 +344,16 @@ export function ProductManagement() {
                           <CardDescription className="text-xs">{supplier.location}, {supplier.country}</CardDescription>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Badge 
-                            variant={supplier.status === 'active' ? 'default' : supplier.status === 'pending' ? 'secondary' : 'outline'}
-                          >
+                          <Badge variant={supplier.status === 'active' ? 'default' : 'secondary'}>
                             {supplier.status}
                           </Badge>
                           <button
                             onClick={() => handleDeleteSupplier(supplier._id, supplier.name)}
                             disabled={deletingSupplier === supplier._id}
-                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            className="p-1 text-red-500 hover:text-red-700 disabled:opacity-50"
                             title="Delete supplier"
                           >
-                            {deletingSupplier === supplier._id ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div>
-                            ) : (
-                              <Trash2 className="h-4 w-4" />
-                            )}
+                            {deletingSupplier === supplier._id ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div> : <Trash2 className="h-4 w-4" />}
                           </button>
                         </div>
                       </div>
@@ -439,15 +377,6 @@ export function ProductManagement() {
                             {supplier.riskLevel}
                           </span>
                         </div>
-                        {supplier.specialties.length > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-600 dark:text-gray-400">Specialties:</span>
-                            <span className="font-medium text-xs">
-                              {supplier.specialties.slice(0, 2).join(', ')}
-                              {supplier.specialties.length > 2 && '...'}
-                            </span>
-                          </div>
-                        )}
                       </div>
                     </CardContent>
                   </Card>

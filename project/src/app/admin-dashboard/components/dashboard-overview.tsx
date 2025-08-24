@@ -14,7 +14,6 @@ import {
   Clock, 
   TrendingUp, 
   DollarSign,
-  MapPin,
   RefreshCw
 } from 'lucide-react';
 
@@ -54,7 +53,7 @@ export function DashboardOverview() {
     try {
       setLoading(true);
       
-      // Fetch data from multiple API endpoints
+      // Fetch data from multiple API endpoints established in the 'main' branch
       const [shipmentsRes, productsRes, suppliersRes, alertsRes] = await Promise.all([
         fetch('/api/shipments'),
         fetch('/api/products'),
@@ -87,7 +86,7 @@ export function DashboardOverview() {
         alertsData = result.data || [];
       }
 
-      // Calculate stats from real data
+      // Calculate stats from the fetched data
       const totalShipments = shipmentsData.length;
       const onTimeDeliveries = shipmentsData.filter(s => s.status === 'On-Time').length;
       const delayedShipments = shipmentsData.filter(s => s.status === 'Delayed').length;
@@ -96,7 +95,7 @@ export function DashboardOverview() {
       
       const totalValue = shipmentsData.reduce((sum, s) => sum + (s.totalValue || 0), 0);
       
-      // Calculate average delivery time (simplified)
+      // Simplified average delivery time for the dashboard
       const averageDeliveryTime = totalShipments > 0 ? 18.5 : 0;
       
       // Calculate risk score based on alerts and stuck shipments
