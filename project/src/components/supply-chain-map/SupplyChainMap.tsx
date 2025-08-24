@@ -1,20 +1,5 @@
-"use client"
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Search, Layers, Truck, Factory, AlertTriangle, Clock, CheckCircle, XCircle, MapPin, Globe } from 'lucide-react';
-
-// Extend Window interface for Leaflet
-declare global {
-  interface Window {
-    L: any;
-  }
-}
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 
 // Types
 interface Location {
@@ -56,7 +41,7 @@ interface MapLayers {
   routes: boolean;
 }
 
-// Demo data with realistic global locations
+// Demo data
 const demoSuppliers: Supplier[] = [
   { 
     id: 'SUPP001', 
@@ -160,26 +145,6 @@ const demoShipments: Shipment[] = [
     currentLocation: { lat: 1.3521, lng: 103.8198, city: 'Singapore', country: 'Singapore' }, 
     product: 'Display Panels', 
     estimatedArrival: '2025-01-12' 
-  },
-  { 
-    id: 'SH007', 
-    supplierId: 'SUPP002', 
-    status: 'on-time', 
-    origin: { lat: 25.0330, lng: 121.5654, city: 'Taipei', country: 'Taiwan' }, 
-    destination: { lat: 19.0760, lng: 72.8777, city: 'Mumbai', country: 'India' }, 
-    currentLocation: { lat: 13.0827, lng: 80.2707, city: 'Chennai', country: 'India' }, 
-    product: 'Memory Chips', 
-    estimatedArrival: '2025-01-16' 
-  },
-  { 
-    id: 'SH008', 
-    supplierId: 'SUPP003', 
-    status: 'in-transit', 
-    origin: { lat: 22.3193, lng: 114.1694, city: 'Hong Kong', country: 'Hong Kong' }, 
-    destination: { lat: -23.5505, lng: -46.6333, city: 'São Paulo', country: 'Brazil' }, 
-    currentLocation: { lat: 25.2048, lng: 55.2708, city: 'Dubai', country: 'UAE' }, 
-    product: 'Sensors', 
-    estimatedArrival: '2025-01-22' 
   }
 ];
 
@@ -198,7 +163,7 @@ const riskConfig = {
   'high': { color: '#EF4444', label: 'High Risk' }
 };
 
-// Leaflet Map Component using CDN
+// Leaflet Map Component - FIXED VERSION
 const LeafletMap = ({ 
   suppliers, 
   shipments, 
@@ -216,272 +181,266 @@ const LeafletMap = ({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
-     useEffect(() => {
-     if (!mapRef.current || typeof window === 'undefined') return;
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadLeaflet = async () => {
+      try {
+        // Ensure we're in browser environment
+        if (typeof window === 'undefined' || !mapRef.current) {
+          return;
+        }
 
-     // Load Leaflet dynamically
-     const loadLeaflet = async () => {
-       try {
-         // Add Leaflet CSS
-         if (!document.querySelector('#leaflet-css')) {
-           const link = document.createElement('link');
-           link.id = 'leaflet-css';
-           link.rel = 'stylesheet';
-           link.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css';
-           document.head.appendChild(link);
-         }
+        // Add CSS if not already present
+        if (!document.querySelector('#leaflet-css')) {
+          const link = document.createElement('link');
+          link.id = 'leaflet-css';
+          link.rel = 'stylesheet';
+          link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+          link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+          link.crossOrigin = '';
+          document.head.appendChild(link);
+          
+          // Wait for CSS to load
+          await new Promise((resolve) => {
+            link.onload = resolve;
+            setTimeout(resolve, 1000); // Fallback timeout
+          });
+        }
 
-         // Add Leaflet JS
-         if (!window.L) {
-           const script = document.createElement('script');
-           script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-           await new Promise((resolve, reject) => {
-             script.onload = resolve;
-             script.onerror = reject;
-             document.head.appendChild(script);
-           });
-         }
+        // Load Leaflet JS if not already loaded
+        if (!(window as any).L) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+            script.crossOrigin = '';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('Failed to load Leaflet'));
+            document.head.appendChild(script);
+          });
+        }
 
-         // Wait a bit for Leaflet to fully initialize
-         await new Promise(resolve => setTimeout(resolve, 100));
+        // Small delay to ensure everything is loaded
+        await new Promise(resolve => setTimeout(resolve, 100));
 
-         // Initialize map
-         if (window.L && !leafletMapRef.current && mapRef.current) {
-           try {
-             leafletMapRef.current = window.L.map(mapRef.current).setView([20, 0], 2);
+        // Initialize map if everything is ready and component is still mounted
+        if ((window as any).L && !leafletMapRef.current && mapRef.current && isMounted) {
+          const L = (window as any).L;
+          
+          leafletMapRef.current = L.map(mapRef.current, {
+            preferCanvas: true,
+            zoomControl: true,
+            attributionControl: true
+          }).setView([20, 0], 2);
 
-             // Add tile layer (OpenStreetMap)
-             window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-               attribution: '© OpenStreetMap contributors',
-               maxZoom: 18,
-             }).addTo(leafletMapRef.current);
+          // Add tile layer
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18,
+          }).addTo(leafletMapRef.current);
 
-             // Set dark style
-             const darkStyle = `
-               .leaflet-container {
-                 background: #1a1a1a;
-                 filter: invert(1) hue-rotate(180deg);
-               }
-               .leaflet-control-container {
-                 filter: invert(1) hue-rotate(180deg);
-               }
-             `;
-             
-             if (!document.querySelector('#leaflet-dark-style')) {
-               const style = document.createElement('style');
-               style.id = 'leaflet-dark-style';
-               style.textContent = darkStyle;
-               document.head.appendChild(style);
-             }
-             
-             setIsLoading(false);
-           } catch (mapError) {
-             console.error('Failed to initialize map:', mapError);
-             setHasError(true);
-             setIsLoading(false);
-           }
-         }
-       } catch (error) {
-         console.error('Failed to load Leaflet:', error);
-         setHasError(true);
-         setIsLoading(false);
-       }
-     };
+          // Apply dark theme
+          const darkStyle = `
+            .leaflet-container {
+              background: #1a1a1a;
+              filter: invert(1) hue-rotate(180deg);
+            }
+            .leaflet-control-container {
+              filter: invert(1) hue-rotate(180deg);
+            }
+            .leaflet-popup-content-wrapper {
+              filter: invert(1) hue-rotate(180deg);
+            }
+          `;
+          
+          if (!document.querySelector('#leaflet-dark-style')) {
+            const style = document.createElement('style');
+            style.id = 'leaflet-dark-style';
+            style.textContent = darkStyle;
+            document.head.appendChild(style);
+          }
 
-    loadLeaflet();
+          if (isMounted) {
+            setIsLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load Leaflet:', error);
+        if (isMounted) {
+          setHasError(true);
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // Add a small delay before loading to ensure DOM is ready
+    const timeoutId = setTimeout(loadLeaflet, 100);
 
     return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
       if (leafletMapRef.current) {
-        leafletMapRef.current.remove();
+        try {
+          leafletMapRef.current.remove();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
         leafletMapRef.current = null;
       }
     };
   }, []);
 
+  // Update markers when data changes
   useEffect(() => {
-    if (!leafletMapRef.current || !window.L || isLoading) return;
+    if (!leafletMapRef.current || !(window as any).L || isLoading) return;
+
+    const L = (window as any).L;
 
     // Clear existing markers
     markersRef.current.forEach(marker => {
-      leafletMapRef.current.removeLayer(marker);
+      try {
+        if (leafletMapRef.current && marker) {
+          leafletMapRef.current.removeLayer(marker);
+        }
+      } catch (e) {
+        // Ignore removal errors
+      }
     });
     markersRef.current = [];
 
     // Add supplier markers
     if (layers.suppliers) {
       suppliers.forEach(supplier => {
-        const icon = window.L.divIcon({
-          html: `
-            <div style="
-              width: 24px;
-              height: 24px;
-              border-radius: 4px;
-              background: ${riskConfig[supplier.riskLevel].color};
-              border: 2px solid white;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 12px;
-              color: white;
-              font-weight: bold;
-              cursor: pointer;
-              transition: transform 0.2s;
-            ">
-              🏭
-            </div>
-          `,
-          className: 'supplier-marker',
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
-        });
+        try {
+          const icon = L.divIcon({
+            html: `
+              <div style="
+                width: 24px;
+                height: 24px;
+                border-radius: 4px;
+                background: ${riskConfig[supplier.riskLevel].color};
+                border: 2px solid white;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                color: white;
+                font-weight: bold;
+                cursor: pointer;
+              ">
+                🏭
+              </div>
+            `,
+            className: 'supplier-marker',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+          });
 
-        const marker = window.L.marker([supplier.location.lat, supplier.location.lng], { icon })
-          .addTo(leafletMapRef.current)
-          .bindPopup(`
-            <div style="color: black; filter: invert(1) hue-rotate(180deg);">
-              <h3>${supplier.name}</h3>
-              <p><strong>Location:</strong> ${supplier.location.city}, ${supplier.location.country}</p>
-              <p><strong>Rating:</strong> ⭐ ${supplier.rating}/5</p>
-              <p><strong>Risk:</strong> ${riskConfig[supplier.riskLevel].label}</p>
-              <p><strong>Products:</strong> ${supplier.products.join(', ')}</p>
-            </div>
-          `);
+          const marker = L.marker([supplier.location.lat, supplier.location.lng], { icon })
+            .addTo(leafletMapRef.current)
+            .bindPopup(`
+              <div style="color: black;">
+                <h3>${supplier.name}</h3>
+                <p><strong>Location:</strong> ${supplier.location.city}, ${supplier.location.country}</p>
+                <p><strong>Rating:</strong> ⭐ ${supplier.rating}/5</p>
+                <p><strong>Risk:</strong> ${riskConfig[supplier.riskLevel].label}</p>
+                <p><strong>Products:</strong> ${supplier.products.join(', ')}</p>
+              </div>
+            `);
 
-        marker.on('click', () => onMarkerClick(supplier));
-        markersRef.current.push(marker);
+          marker.on('click', () => onMarkerClick(supplier));
+          markersRef.current.push(marker);
+        } catch (e) {
+          console.error('Error adding supplier marker:', e);
+        }
       });
     }
 
     // Add shipment markers and routes
     if (layers.shipments || layers.routes) {
       shipments.forEach(shipment => {
-                 // Add route line
-         if (layers.routes) {
-           const routePoints: [number, number][] = [
-             [shipment.origin.lat, shipment.origin.lng],
-             ...(shipment.currentLocation && shipment.status !== 'delivered' 
-               ? [[shipment.currentLocation.lat, shipment.currentLocation.lng] as [number, number]] 
-               : []
-             ),
-             [shipment.destination.lat, shipment.destination.lng]
-           ];
+        try {
+          // Add route line
+          if (layers.routes) {
+            const routePoints: [number, number][] = [
+              [shipment.origin.lat, shipment.origin.lng],
+              ...(shipment.currentLocation && shipment.status !== 'delivered' 
+                ? [[shipment.currentLocation.lat, shipment.currentLocation.lng] as [number, number]] 
+                : []
+              ),
+              [shipment.destination.lat, shipment.destination.lng]
+            ];
 
-           const polyline = window.L.polyline(routePoints, {
-            color: statusConfig[shipment.status].color,
-            weight: 3,
-            opacity: 0.8,
-            dashArray: shipment.status === 'delivered' ? '10, 10' : undefined
-          }).addTo(leafletMapRef.current);
+            const polyline = L.polyline(routePoints, {
+              color: statusConfig[shipment.status].color,
+              weight: 3,
+              opacity: 0.8,
+              dashArray: shipment.status === 'delivered' ? '10, 10' : undefined
+            }).addTo(leafletMapRef.current);
 
-          markersRef.current.push(polyline);
-        }
-
-        if (layers.shipments) {
-          // Origin marker
-          const originIcon = window.L.divIcon({
-            html: `
-              <div style="
-                width: 16px;
-                height: 16px;
-                background: ${statusConfig[shipment.status].color};
-                border: 2px solid white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                cursor: pointer;
-              "></div>
-            `,
-            className: 'shipment-marker',
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
-          });
-
-          const originMarker = window.L.marker([shipment.origin.lat, shipment.origin.lng], { icon: originIcon })
-            .addTo(leafletMapRef.current);
-
-          // Destination marker
-          const destIcon = window.L.divIcon({
-            html: `
-              <div style="
-                width: 16px;
-                height: 16px;
-                background: ${statusConfig[shipment.status].color};
-                border: 2px solid white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                opacity: 0.6;
-              "></div>
-            `,
-            className: 'shipment-marker',
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
-          });
-
-          const destMarker = window.L.marker([shipment.destination.lat, shipment.destination.lng], { icon: destIcon })
-            .addTo(leafletMapRef.current);
-
-          // Current location marker (if applicable)
-          if (shipment.currentLocation && shipment.status !== 'delivered') {
-            const currentIcon = window.L.divIcon({
-              html: `
-                <div style="
-                  width: 20px;
-                  height: 20px;
-                  border-radius: 50%;
-                  background: ${statusConfig[shipment.status].color};
-                  border: 3px solid white;
-                  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-                  cursor: pointer;
-                  animation: pulse 2s infinite;
-                ">
-                  <div style="
-                    width: 8px;
-                    height: 8px;
-                    background: white;
-                    border-radius: 50%;
-                    margin: 3px auto;
-                    margin-top: 3px;
-                  "></div>
-                </div>
-                <style>
-                  @keyframes pulse {
-                    0% { box-shadow: 0 0 0 0 ${statusConfig[shipment.status].color}40; }
-                    70% { box-shadow: 0 0 0 10px transparent; }
-                    100% { box-shadow: 0 0 0 0 transparent; }
-                  }
-                </style>
-              `,
-              className: 'current-location-marker',
-              iconSize: [20, 20],
-              iconAnchor: [10, 10]
-            });
-
-            const currentMarker = window.L.marker([shipment.currentLocation.lat, shipment.currentLocation.lng], { icon: currentIcon })
-              .addTo(leafletMapRef.current)
-              .bindPopup(`
-                <div style="color: black; filter: invert(1) hue-rotate(180deg);">
-                  <h3>Shipment ${shipment.id}</h3>
-                  <p><strong>Product:</strong> ${shipment.product}</p>
-                  <p><strong>Status:</strong> ${statusConfig[shipment.status].label}</p>
-                  <p><strong>Current:</strong> ${shipment.currentLocation.city || 'In Transit'}</p>
-                  <p><strong>ETA:</strong> ${shipment.estimatedArrival}</p>
-                  <p><strong>Origin:</strong> ${shipment.origin.city} → <strong>Destination:</strong> ${shipment.destination.city}</p>
-                </div>
-              `);
-
-            currentMarker.on('click', () => onMarkerClick(shipment));
-            markersRef.current.push(currentMarker);
+            markersRef.current.push(polyline);
           }
 
-          originMarker.on('click', () => onMarkerClick(shipment));
-          markersRef.current.push(originMarker, destMarker);
+          if (layers.shipments) {
+            // Current location marker (if applicable)
+            if (shipment.currentLocation && shipment.status !== 'delivered') {
+              const currentIcon = L.divIcon({
+                html: `
+                  <div style="
+                    width: 20px;
+                    height: 20px;
+                    border-radius: 50%;
+                    background: ${statusConfig[shipment.status].color};
+                    border: 3px solid white;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+                    cursor: pointer;
+                  ">
+                    <div style="
+                      width: 8px;
+                      height: 8px;
+                      background: white;
+                      border-radius: 50%;
+                      margin: 3px auto;
+                      margin-top: 3px;
+                    "></div>
+                  </div>
+                `,
+                className: 'current-location-marker',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+              });
+
+              const currentMarker = L.marker([shipment.currentLocation.lat, shipment.currentLocation.lng], { icon: currentIcon })
+                .addTo(leafletMapRef.current)
+                .bindPopup(`
+                  <div style="color: black;">
+                    <h3>Shipment ${shipment.id}</h3>
+                    <p><strong>Product:</strong> ${shipment.product}</p>
+                    <p><strong>Status:</strong> ${statusConfig[shipment.status].label}</p>
+                    <p><strong>Current:</strong> ${shipment.currentLocation.city || 'In Transit'}</p>
+                    <p><strong>ETA:</strong> ${shipment.estimatedArrival}</p>
+                    <p><strong>Route:</strong> ${shipment.origin.city} → ${shipment.destination.city}</p>
+                  </div>
+                `);
+
+              currentMarker.on('click', () => onMarkerClick(shipment));
+              markersRef.current.push(currentMarker);
+            }
+          }
+        } catch (e) {
+          console.error('Error adding shipment marker:', e);
         }
       });
     }
-  }, [suppliers, shipments, layers, onMarkerClick]);
+  }, [suppliers, shipments, layers, onMarkerClick, isLoading]);
 
   if (hasError) {
     return (
       <div className="w-full h-full rounded-lg bg-red-900/20 border border-red-500/30 flex items-center justify-center">
         <div className="text-center text-red-400">
+          <XCircle className="h-8 w-8 mx-auto mb-2" />
           <div className="text-lg font-semibold mb-2">Map Failed to Load</div>
           <div className="text-sm">Please refresh the page to try again</div>
         </div>
@@ -494,7 +453,7 @@ const LeafletMap = ({
       <div className="w-full h-full rounded-lg bg-slate-800/50 flex items-center justify-center">
         <div className="text-center text-slate-300">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-2"></div>
-          <div className="text-sm">Loading map...</div>
+          <div className="text-sm">Loading interactive map...</div>
         </div>
       </div>
     );
@@ -522,167 +481,97 @@ const MapControls = ({
   const [searchTerm, setSearchTerm] = useState('');
 
   return (
-    <Card className="absolute top-4 left-4 z-[1000] w-80 bg-black/90 backdrop-blur-sm border-white/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-lg text-white">
+    <div className="absolute top-4 left-4 z-[1000] w-80 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg">
+      <div className="p-4">
+        <div className="flex items-center gap-2 text-lg text-white mb-4">
           <Layers className="h-5 w-5" />
           Map Controls
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Search */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-white">Search</label>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <Input
-              placeholder="Search suppliers, shipments..."
-              className="pl-10 bg-white/10 border-white/20 text-white placeholder:text-gray-400"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                onSearch(e.target.value);
-              }}
-            />
-          </div>
         </div>
-
-        <Separator className="bg-white/20" />
-
-        {/* Filters */}
-        <div className="space-y-3">
-          <label className="text-sm font-medium text-white">Filters</label>
-          
-          {/* Status Filter */}
+        
+        <div className="space-y-4">
+          {/* Search */}
           <div className="space-y-2">
-            <label className="text-xs text-gray-300">Shipment Status</label>
-            <Select value={filters.status} onValueChange={(value) => onFilter('status', value)}>
-              <SelectTrigger className="bg-white/10 border-white/20 text-white">
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-white/20">
-                <SelectItem value="all">All Statuses</SelectItem>
-                {Object.entries(statusConfig).map(([status, config]) => (
-                  <SelectItem key={status} value={status}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.color }} />
-                      {config.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <label className="text-sm font-medium text-white">Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input
+                placeholder="Search suppliers, shipments..."
+                className="w-full pl-10 pr-3 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  onSearch(e.target.value);
+                }}
+              />
+            </div>
           </div>
 
-          {/* Risk Level Filter */}
-          <div className="space-y-2">
-            <label className="text-xs text-gray-300">Risk Level</label>
-            <Select value={filters.riskLevel} onValueChange={(value) => onFilter('riskLevel', value)}>
-              <SelectTrigger className="bg-white/10 border-white/20 text-white">
-                <SelectValue placeholder="All Risk Levels" />
-              </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-white/20">
-                <SelectItem value="all">All Risk Levels</SelectItem>
-                {Object.entries(riskConfig).map(([risk, config]) => (
-                  <SelectItem key={risk} value={risk}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: config.color }} />
-                      {config.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <Separator className="bg-white/20" />
-
-        {/* Layer Toggle */}
-        <div className="space-y-3">
-          <label className="text-sm font-medium text-white">Map Layers</label>
-          <div className="space-y-2">
-            {Object.entries(layers).map(([layer, enabled]) => (
-              <div key={layer} className="flex items-center space-x-2">
-                <Checkbox
-                  id={layer}
-                  checked={enabled}
-                  onCheckedChange={() => onLayerToggle(layer as keyof MapLayers)}
-                  className="border-white/20"
-                />
-                <label 
-                  htmlFor={layer} 
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 capitalize text-white"
+          <div className="border-t border-white/20 pt-4">
+            {/* Filters */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-white">Filters</label>
+              
+              {/* Status Filter */}
+              <div className="space-y-2">
+                <label className="text-xs text-gray-300">Shipment Status</label>
+                <select 
+                  value={filters.status} 
+                  onChange={(e) => onFilter('status', e.target.value)}
+                  className="w-full p-2 bg-white/10 border border-white/20 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {layer}
-                </label>
+                  <option value="all">All Statuses</option>
+                  {Object.entries(statusConfig).map(([status, config]) => (
+                    <option key={status} value={status} className="bg-gray-800">
+                      {config.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
 
-// Map Legend Component
-const MapLegend = () => {
-  return (
-    <Card className="absolute bottom-4 left-4 z-[1000] w-64 bg-black/90 backdrop-blur-sm border-white/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm text-white">Legend</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Status Legend */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-gray-300">Shipment Status</label>
-          <div className="grid grid-cols-1 gap-1">
-            {Object.entries(statusConfig).map(([status, config]) => (
-              <div key={status} className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full border border-white shadow-sm" style={{ backgroundColor: config.color }} />
-                <span className="text-xs text-white">{config.label}</span>
+              {/* Risk Level Filter */}
+              <div className="space-y-2">
+                <label className="text-xs text-gray-300">Risk Level</label>
+                <select 
+                  value={filters.riskLevel} 
+                  onChange={(e) => onFilter('riskLevel', e.target.value)}
+                  className="w-full p-2 bg-white/10 border border-white/20 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="all">All Risk Levels</option>
+                  {Object.entries(riskConfig).map(([risk, config]) => (
+                    <option key={risk} value={risk} className="bg-gray-800">
+                      {config.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <Separator className="bg-white/20" />
-
-        {/* Risk Legend */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-gray-300">Supplier Risk Level</label>
-          <div className="grid grid-cols-1 gap-1">
-            {Object.entries(riskConfig).map(([risk, config]) => (
-              <div key={risk} className="flex items-center gap-2">
-                <div className="w-3 h-3 border border-white shadow-sm" style={{ backgroundColor: config.color, borderRadius: '2px' }} />
-                <span className="text-xs text-white">{config.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <Separator className="bg-white/20" />
-
-        {/* Marker Legend */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-gray-300">Markers</label>
-          <div className="grid grid-cols-1 gap-1">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-500 border border-white shadow-sm rounded-full" />
-              <span className="text-xs text-white">Current Location</span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-500 border border-white shadow-sm" style={{ borderRadius: '2px' }} />
-              <span className="text-xs text-white">Supplier</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-orange-500 border border-white shadow-sm" />
-              <span className="text-xs text-white">Origin/Destination</span>
+          </div>
+
+          <div className="border-t border-white/20 pt-4">
+            {/* Layer Toggle */}
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-white">Map Layers</label>
+              <div className="space-y-2">
+                {Object.entries(layers).map(([layer, enabled]) => (
+                  <div key={layer} className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id={layer}
+                      checked={enabled}
+                      onChange={() => onLayerToggle(layer as keyof MapLayers)}
+                      className="rounded border-white/20"
+                    />
+                    <label htmlFor={layer} className="text-sm font-medium text-white capitalize">
+                      {layer}
+                    </label>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };
 
@@ -699,102 +588,104 @@ const InfoPanel = ({
   const isSupplier = 'rating' in selectedItem;
 
   return (
-    <Card className="absolute top-4 right-4 z-[1000] w-80 bg-black/90 backdrop-blur-sm border-white/20">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
+    <div className="absolute top-4 right-4 z-[1000] w-80 bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg">
+      <div className="p-4">
+        <div className="flex items-start justify-between mb-4">
           <div>
-            <CardTitle className="text-lg text-white">
+            <h3 className="text-lg text-white font-semibold">
               {isSupplier ? selectedItem.name : `Shipment ${selectedItem.id}`}
-            </CardTitle>
+            </h3>
             <p className="text-sm text-gray-300">
               {isSupplier ? 'Supplier Details' : 'Shipment Information'}
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} className="text-white hover:bg-white/20">
+          <button 
+            onClick={onClose} 
+            className="text-white hover:bg-white/20 p-1 rounded"
+          >
             ×
-          </Button>
+          </button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isSupplier ? (
-          <>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-300">Rating</span>
-                <span className="font-medium text-white">⭐ {selectedItem.rating}/5</span>
+        
+        <div className="space-y-4">
+          {isSupplier ? (
+            <>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Rating</span>
+                  <span className="font-medium text-white">⭐ {selectedItem.rating}/5</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Risk Level</span>
+                  <span 
+                    className="px-2 py-1 rounded text-xs font-medium"
+                    style={{ 
+                      borderColor: riskConfig[selectedItem.riskLevel].color,
+                      color: riskConfig[selectedItem.riskLevel].color,
+                      border: `1px solid ${riskConfig[selectedItem.riskLevel].color}`
+                    }}
+                  >
+                    {riskConfig[selectedItem.riskLevel].label}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Location</span>
+                  <span className="font-medium text-right text-white">
+                    {selectedItem.location.city}, {selectedItem.location.country}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-300">Risk Level</span>
-                <Badge 
-                  variant="outline"
-                  className="border-white/30 text-white"
-                  style={{ 
-                    borderColor: riskConfig[selectedItem.riskLevel].color,
-                    color: riskConfig[selectedItem.riskLevel].color
-                  }}
-                >
-                  {riskConfig[selectedItem.riskLevel].label}
-                </Badge>
+              <div className="border-t border-white/20 pt-4">
+                <span className="text-sm font-medium text-white">Products</span>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedItem.products.map((product: string, index: number) => (
+                    <span key={index} className="bg-white/20 text-white px-2 py-1 rounded text-xs">
+                      {product}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-300">Location</span>
-                <span className="font-medium text-right text-white">
-                  {selectedItem.location.city}, {selectedItem.location.country}
-                </span>
+            </>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Status</span>
+                  <span 
+                    className="px-2 py-1 rounded text-xs font-medium"
+                    style={{ 
+                      borderColor: statusConfig[selectedItem.status].color,
+                      color: statusConfig[selectedItem.status].color,
+                      border: `1px solid ${statusConfig[selectedItem.status].color}`
+                    }}
+                  >
+                    {statusConfig[selectedItem.status].label}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">Product</span>
+                  <span className="font-medium text-white">{selectedItem.product}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-300">ETA</span>
+                  <span className="font-medium text-white">{selectedItem.estimatedArrival}</span>
+                </div>
               </div>
-            </div>
-            <Separator className="bg-white/20" />
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-white">Products</span>
-              <div className="flex flex-wrap gap-1">
-                {selectedItem.products.map((product: string, index: number) => (
-                  <Badge key={index} variant="secondary" className="bg-white/20 text-white">
-                    {product}
-                  </Badge>
-                ))}
+              <div className="border-t border-white/20 pt-4">
+                <span className="text-sm font-medium text-white">Route Information</span>
+                <div className="text-xs text-gray-300 space-y-1 mt-2">
+                  <div><span className="text-blue-400">Origin:</span> {selectedItem.origin.city}, {selectedItem.origin.country}</div>
+                  <div><span className="text-green-400">Destination:</span> {selectedItem.destination.city}, {selectedItem.destination.country}</div>
+                  {selectedItem.currentLocation && (
+                    <div><span className="text-yellow-400">Current:</span> {selectedItem.currentLocation.city}, {selectedItem.currentLocation.country}</div>
+                  )}
+                </div>
               </div>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-300">Status</span>
-                <Badge 
-                  variant="outline"
-                  className="border-white/30"
-                  style={{ 
-                    borderColor: statusConfig[selectedItem.status].color,
-                    color: statusConfig[selectedItem.status].color
-                  }}
-                >
-                  {statusConfig[selectedItem.status].label}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-300">Product</span>
-                <span className="font-medium text-white">{selectedItem.product}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-300">ETA</span>
-                <span className="font-medium text-white">{selectedItem.estimatedArrival}</span>
-              </div>
-            </div>
-            <Separator className="bg-white/20" />
-            <div className="space-y-2">
-              <span className="text-sm font-medium text-white">Route Information</span>
-              <div className="text-xs text-gray-300 space-y-1">
-                <div><span className="text-blue-400">Origin:</span> {selectedItem.origin.city || 'Unknown'}, {selectedItem.origin.country || 'Unknown'}</div>
-                <div><span className="text-green-400">Destination:</span> {selectedItem.destination.city || 'Unknown'}, {selectedItem.destination.country || 'Unknown'}</div>
-                {selectedItem.currentLocation && (
-                  <div><span className="text-yellow-400">Current:</span> {selectedItem.currentLocation.city || 'At Sea'}, {selectedItem.currentLocation.country || 'International Waters'}</div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -853,25 +744,25 @@ const SupplyChainWorldMap = () => {
     return { suppliers: filteredSuppliers, shipments: filteredShipments };
   }, [filters, searchTerm]);
 
-  const handleSearch = (term: string) => {
+  const handleSearch = useCallback((term: string) => {
     setSearchTerm(term);
-  };
+  }, []);
 
-  const handleFilter = (type: keyof MapFilters, value: string) => {
+  const handleFilter = useCallback((type: keyof MapFilters, value: string) => {
     setFilters(prev => ({ ...prev, [type]: value }));
-  };
+  }, []);
 
-  const handleLayerToggle = (layer: keyof MapLayers) => {
+  const handleLayerToggle = useCallback((layer: keyof MapLayers) => {
     setLayers(prev => ({ ...prev, [layer]: !prev[layer] }));
-  };
+  }, []);
 
-  const handleMarkerClick = (item: Supplier | Shipment) => {
+  const handleMarkerClick = useCallback((item: Supplier | Shipment) => {
     setSelectedItem(item);
-  };
+  }, []);
 
   return (
     <div className="relative w-full h-[600px] rounded-lg overflow-hidden border bg-slate-900">
-      {/* Real Leaflet World Map */}
+      {/* Leaflet World Map */}
       <LeafletMap
         suppliers={filteredData.suppliers}
         shipments={filteredData.shipments}
@@ -889,9 +780,6 @@ const SupplyChainWorldMap = () => {
         suppliers={demoSuppliers}
       />
 
-      {/* Map Legend */}
-     {/* <MapLegend /> */}
-
       {/* Info Panel */}
       <InfoPanel
         selectedItem={selectedItem}
@@ -900,35 +788,31 @@ const SupplyChainWorldMap = () => {
 
       {/* Stats Overlay */}
       <div className="absolute bottom-4 right-4 z-[1000]">
-        <Card className="bg-black/90 backdrop-blur-sm border-white/20">
-          <CardContent className="p-4">
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-green-400">{filteredData.suppliers.length}</div>
-                <div className="text-xs text-gray-300">Active Suppliers</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-blue-400">{filteredData.shipments.length}</div>
-                <div className="text-xs text-gray-300">Total Shipments</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-yellow-400">
-                  {filteredData.shipments.filter(s => s.status === 'in-transit' || s.status === 'on-time').length}
-                </div>
-                <div className="text-xs text-gray-300">In Transit</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-red-400">
-                  {filteredData.shipments.filter(s => s.status === 'delayed' || s.status === 'stuck').length}
-                </div>
-                <div className="text-xs text-gray-300">Delayed</div>
-              </div>
+        <div className="bg-black/90 backdrop-blur-sm border border-white/20 rounded-lg p-4">
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-green-400">{filteredData.suppliers.length}</div>
+              <div className="text-xs text-gray-300">Active Suppliers</div>
             </div>
-          </CardContent>
-        </Card>
+            <div>
+              <div className="text-2xl font-bold text-blue-400">{filteredData.shipments.length}</div>
+              <div className="text-xs text-gray-300">Total Shipments</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-yellow-400">
+                {filteredData.shipments.filter(s => s.status === 'in-transit' || s.status === 'on-time').length}
+              </div>
+              <div className="text-xs text-gray-300">In Transit</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-red-400">
+                {filteredData.shipments.filter(s => s.status === 'delayed' || s.status === 'stuck').length}
+              </div>
+              <div className="text-xs text-gray-300">Delayed</div>
+            </div>
+          </div>
+        </div>
       </div>
-
-    
     </div>
   );
 };
