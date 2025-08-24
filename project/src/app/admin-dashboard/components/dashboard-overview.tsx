@@ -15,7 +15,8 @@ import {
   TrendingUp, 
   DollarSign,
   RefreshCw,
-  Database
+  Database,
+  Activity
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -226,6 +227,14 @@ export function DashboardOverview() {
               📊 Live data: {dataStatus.products} products, {dataStatus.suppliers} suppliers, {dataStatus.shipments} shipments
             </p>
           )}
+          <div className="flex space-x-2 mt-2">
+            <Button asChild variant="outline" size="sm">
+              <a href="/admin-dashboard?tab=live-data">
+                <Activity className="h-4 w-4 mr-2" />
+                View Live Data
+              </a>
+            </Button>
+          </div>
         </div>
                  <div className="flex space-x-2">
            <Button onClick={fetchDashboardData} variant="outline" size="sm">

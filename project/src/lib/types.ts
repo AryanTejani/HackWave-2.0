@@ -34,3 +34,13 @@ export interface Alert {
     createdAt: Date;
     updatedAt: Date;
   }
+
+  export interface UploadLog {
+    _id: string;
+    fileName: string;
+    dataType: string;
+    rowCount: number;
+    status: 'Success' | 'Failed';
+    userId: string;
+    createdAt: string;
+  }

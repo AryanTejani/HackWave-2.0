@@ -47,6 +47,12 @@ const data = {
       description: "Key metrics and insights"
     },
     {
+      title: "Live Data",
+      section: "live-data" as DashboardSection,
+      icon: IconDatabase,
+      description: "View and download uploaded data"
+    },
+    {
       title: "Shipment Management",
       section: "shipments" as DashboardSection,
       icon: IconTruck,

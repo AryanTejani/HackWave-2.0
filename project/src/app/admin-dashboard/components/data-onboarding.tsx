@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { 
@@ -13,14 +12,15 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  X
+  X,
+  Activity
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-
+import { DataHistory } from './data-history';
 interface FileUpload {
   file: File;
   type: string;
@@ -37,6 +37,8 @@ export function DataOnboarding() {
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [overallProgress, setOverallProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   const dataTypes = [
@@ -188,6 +190,9 @@ export function DataOnboarding() {
           setSelectedFiles(prev => 
             prev.map(f => ({ ...f, status: 'completed' as const, progress: 100 }))
           );
+          
+          // Refresh the data history
+          setRefreshKey(prev => prev + 1);
         }, 1000);
       }, 3000);
 
@@ -212,6 +217,9 @@ export function DataOnboarding() {
     Object.values(fileInputRefs.current).forEach(ref => {
       if (ref) ref.value = '';
     });
+    
+    // Refresh the data history to show latest uploads
+    setRefreshKey(prev => prev + 1);
   };
 
   return (
@@ -274,7 +282,9 @@ export function DataOnboarding() {
                 {/* File Input */}
                 <div className="relative">
                   <input
-                    ref={el => fileInputRefs.current[key] = el}
+                    ref={(el) => {
+                      fileInputRefs.current[key] = el;
+                    }}
                     type="file"
                     accept=".xlsx,.xls,.csv"
                     onChange={(e) => handleFileSelect(key, e.target.files)}
@@ -385,6 +395,34 @@ export function DataOnboarding() {
           )}
         </div>
       </div>
-    </div>
-  );
-}
+              <Separator />
+       
+       {/* View Live Data Button */}
+       {uploadStatus === 'completed' && (
+         <Card>
+           <CardContent className="pt-6">
+             <div className="text-center">
+               <p className="text-sm text-gray-600 mb-4">
+                 Your data has been successfully uploaded and processed!
+               </p>
+               <Button 
+                 onClick={() => {
+                   const event = new CustomEvent('changeSection', { 
+                     detail: { section: 'live-data', dataType: 'overview' } 
+                   });
+                   window.dispatchEvent(event);
+                 }}
+                 className="mx-auto"
+               >
+                 <Activity className="h-4 w-4 mr-2" />
+                 View Live Data
+               </Button>
+             </div>
+           </CardContent>
+         </Card>
+       )}
+       
+       <DataHistory refreshKey={refreshKey} />
+     </div>
+   );
+ }

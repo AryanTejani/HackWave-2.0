@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-config';
-import formidable from 'formidable';
 import * as xlsx from 'xlsx';
 import { mapAndSaveDataWithAI } from '@/lib/ai-data-mapper';
 import { connectToDatabase } from '@/lib/mongo';
@@ -107,8 +106,8 @@ export async function POST(request: NextRequest) {
         if (mappingResult.success) {
           results[dataType] = {
             success: true,
-            recordsProcessed: mappingResult.data.length,
-            message: `Successfully processed ${mappingResult.data.length} records`
+            recordsProcessed: mappingResult.data?.length || 0,
+            message: `Successfully processed ${mappingResult.data?.length || 0} records`
           };
         } else {
           errors.push(`${dataType}: ${mappingResult.errors?.join(', ') || 'Mapping failed'}`);

@@ -16,7 +16,8 @@ import {
   Zap,
   Settings,
   BarChart3,
-  Lightbulb
+  Lightbulb,
+  Square
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,14 +71,19 @@ interface DynamicData {
 }
 
 export function AIIntelligence() {
+  // IMPORTANT: This component does NOT run AI analysis automatically
+  // AI analysis only runs when user explicitly clicks "Run AI Analysis" button
+  
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
   const [dynamicData, setDynamicData] = useState<DynamicData | null>(null);
-  const [loadingAnalysis, setLoadingAnalysis] = useState(true);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false); // Changed to false - no auto-loading
   const [loadingDynamicData, setLoadingDynamicData] = useState(true);
   const [activeAgent, setActiveAgent] = useState<'risk' | 'impact' | 'strategy' | null>(null);
   const [whatIfScenario, setWhatIfScenario] = useState('');
   const [simulationResult, setSimulationResult] = useState<WhatIfSimulationResult | null>(null);
   const [aiInsights, setAiInsights] = useState<any[]>([]);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [lastAnalysisTime, setLastAnalysisTime] = useState<string | null>(null);
   
   const [availableScenarios, setAvailableScenarios] = useState<string[]>([
       'Panama Canal closure',
@@ -88,9 +94,63 @@ export function AIIntelligence() {
       'New import tariffs'
   ]);
 
-  // Fetch all necessary data on component mount
+  // Load saved analysis from localStorage on component mount
   useEffect(() => {
-    runAIAnalysis();
+    console.log('🔄 AIIntelligence: Loading saved analysis from localStorage');
+    try {
+      const savedAnalysis = localStorage.getItem('lastAIAnalysis');
+      const savedAnalysisTime = localStorage.getItem('lastAIAnalysisTime');
+      
+      if (savedAnalysis) {
+        setAnalysis(JSON.parse(savedAnalysis));
+        console.log('✅ Loaded saved AI analysis from localStorage');
+      }
+      if (savedAnalysisTime) {
+        setLastAnalysisTime(savedAnalysisTime);
+        console.log('✅ Loaded saved analysis time from localStorage');
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load saved analysis from localStorage:', error);
+    }
+  }, []);
+
+  // Save analysis to localStorage whenever it changes
+  useEffect(() => {
+    if (analysis) {
+      try {
+        localStorage.setItem('lastAIAnalysis', JSON.stringify(analysis));
+        console.log('💾 Saved AI analysis to localStorage');
+      } catch (error) {
+        console.warn('⚠️ Failed to save analysis to localStorage:', error);
+      }
+    }
+  }, [analysis]);
+
+  // Save analysis time to localStorage whenever it changes
+  useEffect(() => {
+    if (lastAnalysisTime) {
+      try {
+        localStorage.setItem('lastAIAnalysisTime', lastAnalysisTime);
+        console.log('💾 Saved analysis time to localStorage');
+      } catch (error) {
+        console.warn('⚠️ Failed to save analysis time to localStorage:', error);
+      }
+    }
+  }, [lastAnalysisTime]);
+
+  // Cleanup effect to abort ongoing requests when component unmounts
+  useEffect(() => {
+    return () => {
+      if (abortController) {
+        console.log('🛑 AIIntelligence: Component unmounting, aborting ongoing analysis');
+        abortController.abort();
+      }
+    };
+  }, [abortController]);
+
+  // Fetch ONLY dynamic data on component mount (NO AI analysis)
+  useEffect(() => {
+    console.log('🔄 AIIntelligence: Component mounted, fetching dynamic data only');
     fetchDynamicData();
   }, []);
 
@@ -114,31 +174,83 @@ export function AIIntelligence() {
   };
 
   const runAIAnalysis = async () => {
-    setLoadingAnalysis(true);
-    setActiveAgent('risk');
+    // Prevent multiple simultaneous analyses
+    if (loadingAnalysis) {
+      console.log('⚠️ AI analysis already in progress, ignoring request');
+      return;
+    }
+
     try {
+      console.log('🤖 AIIntelligence: User clicked Run AI Analysis - Starting AI analysis');
+      setLoadingAnalysis(true);
+      setActiveAgent('risk');
+      
+      // Create abort controller for this request
+      const controller = new AbortController();
+      setAbortController(controller);
+      
       await new Promise(resolve => setTimeout(resolve, 1500));
+      if (controller.signal.aborted) return;
+      
       setActiveAgent('impact');
       await new Promise(resolve => setTimeout(resolve, 1500));
+      if (controller.signal.aborted) return;
+      
       setActiveAgent('strategy');
       await new Promise(resolve => setTimeout(resolve, 1500));
+      if (controller.signal.aborted) return;
       
       const response = await fetch('/api/ai-analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysisType: 'full' })
+        body: JSON.stringify({ analysisType: 'full' }),
+        signal: controller.signal
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.analysis) {
         setAnalysis(data.analysis);
+        setLastAnalysisTime(new Date().toLocaleString());
+        console.log('✅ AI analysis completed successfully');
+      } else {
+        throw new Error('Invalid analysis response format');
       }
     } catch (error) {
-      console.error('Analysis error:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.log('🛑 AIIntelligence: AI analysis was cancelled by user');
+      } else {
+        console.error('❌ AI analysis error:', error);
+      }
     } finally {
       setLoadingAnalysis(false);
       setActiveAgent(null);
+      setAbortController(null);
+      console.log('🏁 AIIntelligence: AI analysis completed or cancelled');
     }
+  };
+
+  const stopAnalysis = () => {
+    if (abortController && loadingAnalysis) {
+      console.log('🛑 AIIntelligence: User clicked Stop Analysis - Cancelling AI analysis');
+      abortController.abort();
+      setLoadingAnalysis(false);
+      setActiveAgent(null);
+      setAbortController(null);
+    } else {
+      console.log('⚠️ No active analysis to stop');
+    }
+  };
+
+  const clearAnalysis = () => {
+    console.log('🗑️ Clearing AI analysis');
+    setAnalysis(null);
+    setLastAnalysisTime(null);
+    localStorage.removeItem('lastAIAnalysis');
+    localStorage.removeItem('lastAIAnalysisTime');
   };
 
   const runWhatIfSimulation = async () => {
@@ -251,13 +363,67 @@ export function AIIntelligence() {
           <p className="text-gray-600 dark:text-gray-400">AI-powered supply chain analysis and predictive insights</p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline"><Settings className="h-4 w-4 mr-2" />AI Settings</Button>
-          <Button onClick={runAIAnalysis} disabled={loadingAnalysis}>
-            {loadingAnalysis ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Play className="h-4 w-4 mr-2" />}
-            {loadingAnalysis ? 'Analyzing...' : 'Run AI Analysis'}
+          {loadingAnalysis ? (
+            <Button 
+              onClick={stopAnalysis}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <Square className="h-4 w-4 mr-2" />
+              Stop Analysis
+            </Button>
+          ) : (
+            <Button 
+              onClick={runAIAnalysis}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Run AI Analysis
+            </Button>
+          )}
+          {analysis && (
+            <Button 
+              onClick={clearAnalysis}
+              variant="outline"
+              className="text-red-600 border-red-200 hover:bg-red-50"
+              disabled={loadingAnalysis}
+            >
+              Clear Analysis
+            </Button>
+          )}
+          <Button variant="outline" disabled={loadingAnalysis}>
+            <Settings className="h-4 w-4 mr-2" />
+            AI Settings
           </Button>
         </div>
       </div>
+
+      {/* Analysis Status */}
+      {loadingAnalysis && (
+        <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span className="text-sm font-medium">
+                Running AI Analysis... This may take a few moments.
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Last Analysis Status */}
+      {lastAnalysisTime && !loadingAnalysis && (
+        <Card className="bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+              <Brain className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                Last AI Analysis completed: {lastAnalysisTime}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Multi-Agent Status */}
       {loadingAnalysis && (
