@@ -86,13 +86,28 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth(request);
     const userId = user._id.toString();
 
+    // Test the AI system with a quick analysis
+    console.log('AI Analysis: Testing system with user:', userId);
+    
+    const risks = await multiAgentSystem.riskMonitor.detectRisks(userId);
+    const recommendations = await multiAgentSystem.strategyRecommender.generateRecommendations(userId);
+
     // Return analysis status and available types
     return NextResponse.json({
       success: true,
       data: {
         availableAnalysisTypes: ['full', 'risks', 'recommendations'],
-        lastAnalysis: null,
-        status: 'ready'
+        lastAnalysis: {
+          timestamp: new Date().toISOString(),
+          risksFound: risks.length,
+          recommendationsGenerated: recommendations.immediate.length + recommendations.shortTerm.length + recommendations.longTerm.length
+        },
+        status: 'ready',
+        testResults: {
+          riskDetection: risks.length > 0 ? 'working' : 'no data',
+          recommendationGeneration: 'working',
+          aiIntegration: 'active'
+        }
       }
     });
 

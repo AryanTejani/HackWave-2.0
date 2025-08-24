@@ -15,7 +15,8 @@ import {
   Search,
   Filter,
   Download,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ export function ShipmentManagement() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [deletingShipment, setDeletingShipment] = useState<string | null>(null);
 
   const fetchData = async () => {
     try {
@@ -47,8 +49,8 @@ export function ShipmentManagement() {
       
       // Fetch shipments and alerts in parallel
       const [shipmentsRes, alertsRes] = await Promise.all([
-        fetch('/api/shipments'),
-        fetch('/api/alerts')
+        fetch('/api/shipments', { credentials: 'include' }),
+        fetch('/api/alerts', { credentials: 'include' })
       ]);
 
       if (shipmentsRes.ok) {
@@ -85,6 +87,46 @@ export function ShipmentManagement() {
 
   const handleShipmentUpdate = () => {
     fetchData(); // Refresh data after updates
+  };
+
+  const handleDeleteShipment = async (shipmentId: string, trackingNumber: string) => {
+    if (!confirm(`Are you sure you want to delete shipment "${trackingNumber}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingShipment(shipmentId);
+      
+      const response = await fetch(`/api/shipments?id=${shipmentId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove the shipment from the local state
+        setShipments(prev => prev.filter(s => s._id !== shipmentId));
+        // Recalculate stats
+        const updatedShipments = shipments.filter(s => s._id !== shipmentId);
+        const newStats = {
+          total: updatedShipments.length,
+          onTime: updatedShipments.filter((s: any) => s.status === 'On-Time').length,
+          delayed: updatedShipments.filter((s: any) => s.status === 'Delayed').length,
+          stuck: updatedShipments.filter((s: any) => s.status === 'Stuck').length,
+          delivered: updatedShipments.filter((s: any) => s.status === 'Delivered').length,
+        };
+        setStats(newStats);
+        alert('Shipment deleted successfully!');
+      } else {
+        alert(`Failed to delete shipment: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting shipment:', error);
+      alert('Failed to delete shipment. Please try again.');
+    } finally {
+      setDeletingShipment(null);
+    }
   };
 
   const filteredShipments = shipments.filter(shipment => {
@@ -300,15 +342,29 @@ export function ShipmentManagement() {
                             {shipment.productId?.name || 'Unknown Product'}
                           </CardDescription>
                         </div>
-                        <Badge 
-                          variant={
-                            shipment.status === 'On-Time' ? 'default' :
-                            shipment.status === 'Delayed' ? 'secondary' :
-                            shipment.status === 'Stuck' ? 'destructive' : 'outline'
-                          }
-                        >
-                          {shipment.status}
-                        </Badge>
+                        <div className="flex items-center space-x-2">
+                          <Badge 
+                            variant={
+                              shipment.status === 'On-Time' ? 'default' :
+                              shipment.status === 'Delayed' ? 'secondary' :
+                              shipment.status === 'Stuck' ? 'destructive' : 'outline'
+                            }
+                          >
+                            {shipment.status}
+                          </Badge>
+                          <button
+                            onClick={() => handleDeleteShipment(shipment._id, shipment.trackingNumber || 'Unknown')}
+                            disabled={deletingShipment === shipment._id}
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            title="Delete shipment"
+                          >
+                            {deletingShipment === shipment._id ? (
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-500"></div>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">

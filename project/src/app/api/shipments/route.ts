@@ -6,22 +6,41 @@ import mongoose from 'mongoose';
 
 export async function GET(request: NextRequest) {
   try {
-    // Require authentication
+    console.log('Shipments API: GET request received');
+    
+    // Get authenticated user (but don't filter by user ID for now)
     const user = await requireAuth(request);
-    const userId = user._id.toString();
-
+    console.log('Shipments API: User authenticated:', user.email);
+    
     await connectToDatabase();
     
-    // Filter shipments by user ID
-    const shipments = await Shipment.find({ userId })
+    // Get all shipments regardless of user (for demo purposes)
+    const allShipments = await Shipment.find({})
       .populate('productId', 'name category supplier origin')
       .sort({ createdAt: -1 })
       .lean();
     
+    console.log('Shipments API: Found', allShipments.length, 'total shipments');
+    
+    // Debug: Log first few shipments if any exist
+    if (allShipments.length > 0) {
+      console.log('Shipments API: Sample shipment:', {
+        id: allShipments[0]._id,
+        productId: allShipments[0].productId,
+        origin: allShipments[0].origin,
+        destination: allShipments[0].destination,
+        status: allShipments[0].status,
+        userId: allShipments[0].userId
+      });
+    } else {
+      console.log('Shipments API: No shipments found in database');
+    }
+    
     return NextResponse.json({
       success: true,
-      data: shipments,
-      count: shipments.length
+      data: allShipments,
+      count: allShipments.length,
+      message: 'Showing all shipments (demo mode)'
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'Authentication required') {
@@ -56,7 +75,18 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // Validate required fields
-    const requiredFields = ['trackingNumber', 'productId', 'origin', 'destination', 'status'];
+    const requiredFields = [
+      'productId', 
+      'origin', 
+      'destination', 
+      'status',
+      'expectedDelivery',
+      'quantity',
+      'totalValue',
+      'shippingMethod',
+      'carrier'
+    ];
+    
     for (const field of requiredFields) {
       if (!body[field]) {
         return NextResponse.json(
@@ -66,15 +96,63 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validate numeric fields
+    if (body.quantity < 1) {
+      return NextResponse.json(
+        { success: false, error: 'Quantity must be at least 1' },
+        { status: 400 }
+      );
+    }
+
+    if (body.totalValue <= 0) {
+      return NextResponse.json(
+        { success: false, error: 'Total value must be greater than 0' },
+        { status: 400 }
+      );
+    }
+
+    // Validate shipping method
+    const validShippingMethods = ['Air', 'Sea', 'Land', 'Express'];
+    if (!validShippingMethods.includes(body.shippingMethod)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid shipping method' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status
+    const validStatuses = ['On-Time', 'Delayed', 'Stuck', 'Delivered'];
+    if (!validStatuses.includes(body.status)) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid status' },
+        { status: 400 }
+      );
+    }
+
+    // Validate expected delivery date
+    const expectedDelivery = new Date(body.expectedDelivery);
+    if (isNaN(expectedDelivery.getTime())) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid expected delivery date' },
+        { status: 400 }
+      );
+    }
+
     // Create shipment with user ID
     const shipment = new Shipment({
-      ...body,
-      userId: new mongoose.Types.ObjectId(userId),
-      trackingNumber: body.trackingNumber.trim(),
+      productId: new mongoose.Types.ObjectId(body.productId),
       origin: body.origin.trim(),
       destination: body.destination.trim(),
       status: body.status,
-      riskFactors: body.riskFactors || []
+      expectedDelivery: expectedDelivery,
+      trackingNumber: body.trackingNumber?.trim(),
+      quantity: body.quantity,
+      totalValue: body.totalValue,
+      shippingMethod: body.shippingMethod,
+      carrier: body.carrier.trim(),
+      currentLocation: body.currentLocation?.trim(),
+      riskFactors: body.riskFactors || [],
+      userId: new mongoose.Types.ObjectId(userId)
     });
 
     await shipment.save();

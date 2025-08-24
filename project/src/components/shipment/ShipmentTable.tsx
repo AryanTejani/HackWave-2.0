@@ -49,14 +49,16 @@ export default function ShipmentTable({ shipments, onUpdate }: ShipmentTableProp
     if (!confirm('Are you sure you want to delete this shipment?')) return;
 
     try {
-      const response = await fetch(`/api/shipments/${id}`, {
+      const response = await fetch(`/api/shipments?id=${id}`, {
         method: 'DELETE',
+        credentials: 'include'
       });
 
       if (response.ok) {
         onUpdate();
       } else {
-        alert('Failed to delete shipment');
+        const error = await response.json();
+        alert(`Failed to delete shipment: ${error.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error deleting shipment:', error);

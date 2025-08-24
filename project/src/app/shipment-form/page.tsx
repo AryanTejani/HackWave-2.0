@@ -10,6 +10,7 @@ interface ShipmentFormData {
   productId: string;
   origin: string;
   destination: string;
+  status: 'On-Time' | 'Delayed' | 'Stuck' | 'Delivered';
   expectedDelivery: string;
   trackingNumber: string;
   quantity: number;
@@ -36,6 +37,7 @@ const initialFormData: ShipmentFormData = {
   productId: '',
   origin: '',
   destination: '',
+  status: 'On-Time',
   expectedDelivery: '',
   trackingNumber: '',
   quantity: 1,
@@ -78,7 +80,7 @@ export default function ShipmentForm() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const response = await fetch('/api/products');
+        const response = await fetch('/api/products', { credentials: 'include' });
         const result = await response.json();
         if (result.success) {
           setProducts(result.data);
@@ -143,6 +145,7 @@ export default function ShipmentForm() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -154,6 +157,7 @@ export default function ShipmentForm() {
         setTimeout(() => {
           setFormData(initialFormData);
           setSubmitStatus('idle');
+          router.push('/admin-dashboard');
         }, 2000);
       } else {
         setSubmitStatus('error');
@@ -185,7 +189,7 @@ export default function ShipmentForm() {
         <div className="mb-8">
           <div className="flex items-center space-x-4 mb-4">
             <Link
-              href="/dashboard"
+              href="/admin-dashboard"
               className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -318,6 +322,24 @@ export default function ShipmentForm() {
                   placeholder="e.g., Rotterdam, Netherlands"
                   required
                 />
+              </div>
+              
+              <div>
+                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
+                  Status *
+                </label>
+                <select
+                  id="status"
+                  value={formData.status}
+                  onChange={(e) => handleInputChange('status', e.target.value as 'On-Time' | 'Delayed' | 'Stuck' | 'Delivered')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  <option value="On-Time">On-Time</option>
+                  <option value="Delayed">Delayed</option>
+                  <option value="Stuck">Stuck</option>
+                  <option value="Delivered">Delivered</option>
+                </select>
               </div>
               
               <div>
@@ -474,7 +496,7 @@ export default function ShipmentForm() {
           {/* Submit Button */}
           <div className="flex justify-end space-x-4">
             <Link
-              href="/dashboard"
+              href="/admin-dashboard"
               className="px-6 py-3 border border-gray-300 rounded-md text-gray-700 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
               Cancel

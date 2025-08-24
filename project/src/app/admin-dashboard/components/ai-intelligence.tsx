@@ -232,7 +232,7 @@ export function AIIntelligence() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-gray-600">
-                {new Date(analysis.analysisTimestamp).toLocaleString()}
+                {analysis.analysisTimestamp ? new Date(analysis.analysisTimestamp).toLocaleString() : 'N/A'}
               </p>
             </CardContent>
           </Card>
@@ -324,7 +324,7 @@ export function AIIntelligence() {
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      ${simulationResult.impact.additionalCost.toLocaleString()}
+                      ${simulationResult.impact.additionalCost ? simulationResult.impact.additionalCost.toLocaleString() : '0'}
                     </div>
                     <div className="text-sm text-gray-600">Additional Cost</div>
                   </div>
