@@ -1,7 +1,7 @@
 // app/api/shipments/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongo';
-import Shipment from '@/models/Shipment';
+import { Shipment } from '@/models/Shipment';
 import mongoose from 'mongoose';
 
 export async function PUT(
@@ -31,7 +31,7 @@ export async function PUT(
       id,
       updateData,
       { new: true, runValidators: true }
-    ).populate('productId', 'name category supplier');
+    ).populate('productId', 'name category supplier origin');
 
     if (!shipment) {
       return NextResponse.json(

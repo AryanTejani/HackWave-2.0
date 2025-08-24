@@ -9,7 +9,7 @@ export default function Home() {
       {/* Hero Section */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 mb-6 text-balance">
+          <h1 className="text-5xl font-bold text-gray-900 mb-6 text-balance dark:text-gray-200">
             Supply Chain Risk Detection & Monitoring
           </h1>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto text-balance">
@@ -17,7 +17,7 @@ export default function Home() {
             to keep your supply chain running smoothly.
           </p>
           <Link
-            href="/dashboard"
+            href="/admin-dashboard"
             className="btn-primary text-lg px-8 py-3"
           >
             Get Started

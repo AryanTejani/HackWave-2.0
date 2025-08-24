@@ -41,7 +41,8 @@ export default function AddShipmentForm({ onSuccess, onCancel }: AddShipmentForm
     try {
       const response = await fetch('/api/products');
       if (response.ok) {
-        const data = await response.json();
+        const result = await response.json();
+        const data = result.success ? result.data : [];
         setProducts(data);
       }
     } catch (error) {
@@ -100,11 +101,16 @@ export default function AddShipmentForm({ onSuccess, onCancel }: AddShipmentForm
       });
 
       if (response.ok) {
-        const product = await response.json();
-        setProducts([...products, product]);
-        setFormData({ ...formData, productId: product._id });
-        setNewProduct({ name: '', category: '', supplier: '' });
-        setShowNewProductForm(false);
+        const result = await response.json();
+        if (result.success) {
+          const product = result.data;
+          setProducts([...products, product]);
+          setFormData({ ...formData, productId: product._id });
+          setNewProduct({ name: '', category: '', supplier: '' });
+          setShowNewProductForm(false);
+        } else {
+          alert(result.error || 'Failed to create product');
+        }
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to create product');

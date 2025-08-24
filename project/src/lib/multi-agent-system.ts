@@ -1,116 +1,79 @@
 // src/lib/multi-agent-system.ts
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { demoRiskAlerts } from './demo-data/risk-alerts';
+import { connectToDatabase } from './mongo';
+import Shipment from '@/models/Shipment';
+import Product from '@/models/Product';
+import Supplier from '@/models/Supplier';
 import { generateWhatIfSimulation } from './demo-data/what-if-scenarios';
-// =================================================================
-// We now import your powerful data fetching functions and types
-// =================================================================
-import {
-  getGlobalConditions,
+import { 
+  getGlobalConditions, 
   getSupplyChainNews,
   GlobalCondition,
   NewsItem,
+  RiskAlert,
+  SimulationResult,
+  RouteInfo,
+  AlternativeRoute,
+  StrategyRecommendation
 } from './tools';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
-// --- All your interfaces remain exactly as you defined them ---
-export interface RiskAlert {
-  id: string;
-  type: 'geopolitical' | 'weather' | 'port_closure' | 'trade_disruption' | 'labor_strike' | 'regulatory';
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  region: string;
-  title: string;
-  description: string;
-  impact: string;
-  detectedAt: Date;
-  sources: string[];
-}
-
-export interface SimulationResult {
-  originalRoute: RouteInfo;
-  disruptionImpact: {
-    delayDays: number;
-    additionalCost: number;
-    affectedShipments: number;
-    riskLevel: string;
-  };
-  alternatives: AlternativeRoute[];
-}
-
-export interface RouteInfo {
-  origin: string;
-  transit: string[];
-  destination: string;
-  distance: number;
-  duration: number;
-  cost: number;
-}
-
-export interface AlternativeRoute extends RouteInfo {
-  recommendation: string;
-  pros: string[];
-  cons: string[];
-  riskReduction: number;
-}
-
-export interface StrategyRecommendation {
-  immediate: string[];
-  shortTerm: string[];
-  longTerm: string[];
-  contingencyPlans: string[];
-}
-
 /**
  * Agent 1: Risk Monitor
- * Detects vulnerabilities from the dynamic data passed into it.
+ * Analyzes both the user's specific supply chain data and live global data to detect risks.
  */
 export class RiskMonitorAgent {
-  private model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  // =================================================================
-  // CHANGE 1: The agent now accepts the rich, structured data directly.
-  // It no longer fetches data itself. Its only job is to analyze.
-  // =================================================================
-  async detectRisks(conditions: GlobalCondition[], news: NewsItem[]): Promise<RiskAlert[]> {
-    
-    // =================================================================
-    // CHANGE 2: The prompt is now built using the dynamic data.
-    // This is where the live data is passed to the Gemini model.
-    // =================================================================
-    // Limit data to reduce prompt size and avoid rate limits
-    const limitedConditions = conditions.slice(0, 3).map(c => ({
-      region: c.region,
-      condition: c.condition,
-      severity: c.severity,
-      impact: c.impact
-    }));
-    
-    const limitedNews = news.slice(0, 2).map(n => ({
-      title: n.title.substring(0, 100),
-      snippet: n.snippet.substring(0, 150)
-    }));
-
-    const prompt = `
-    You are a supply chain risk monitoring AI agent. Analyze this data and generate 3-4 risk alerts.
-
-    **Conditions:** ${JSON.stringify(limitedConditions)}
-    **News:** ${JSON.stringify(limitedNews)}
-
-    Return JSON array with structure:
-    {
-      "id": "unique_id",
-      "type": "geopolitical|weather|port_closure|trade_disruption",
-      "severity": "low|medium|high|critical",
-      "region": "region affected or 'Global'",
-      "title": "concise title",
-      "description": "risk description",
-      "impact": "supply chain impact",
-      "sources": ["source summary"]
-    }
-    `;
-
+  async detectRisks(userId: string, conditions: GlobalCondition[], news: NewsItem[]): Promise<RiskAlert[]> {
     try {
+      await connectToDatabase();
+      
+      // Get user's actual supply chain data
+      const shipments = await Shipment.find({ userId }).populate('productId', 'name supplier').limit(10);
+      const suppliers = await Supplier.find({ userId }).limit(10);
+
+      const userShipmentSummary = shipments.map(s => ({
+        product: (s.productId as any)?.name,
+        status: s.status,
+        origin: s.origin,
+        destination: s.destination,
+        value: s.totalValue
+      }));
+
+      const userSupplierSummary = suppliers.map(s => ({
+        name: s.name,
+        location: s.location,
+        riskLevel: s.riskLevel
+      }));
+
+      const prompt = `
+      You are a world-class supply chain risk monitoring AI. Analyze the user's current supply chain data in conjunction with live global news and conditions to generate a JSON array of critical risk alerts.
+
+      **User's Live Supply Chain Data:**
+      - Shipments: ${JSON.stringify(userShipmentSummary)}
+      - Key Suppliers: ${JSON.stringify(userSupplierSummary)}
+
+      **Live Global Conditions & News:**
+      - Global Conditions: ${JSON.stringify(conditions)}
+      - Latest News: ${JSON.stringify(news.map(n => ({ title: n.title, snippet: n.snippet })))}
+
+      Based on BOTH the user's data and the live global data, generate a JSON array of 3-4 highly relevant risk alerts. The structure for each alert should be:
+      {
+        "id": "unique_id",
+        "type": "geopolitical|weather|supplier_risk|logistics_risk",
+        "severity": "low|medium|high|critical",
+        "region": "The specific region affected, or 'Global'",
+        "title": "A concise alert title",
+        "description": "A detailed description of the risk, explaining how it affects the user's specific products or suppliers.",
+        "impact": "The expected impact on the user's supply chain.",
+        "affectedProducts": ["List affected product names"],
+        "affectedShipments": ["List affected shipment IDs"],
+        "sources": ["e.g., 'Live News Feed', 'User Shipment Data'"]
+      }
+      `;
+
       const result = await this.model.generateContent(prompt);
       const response = result.response.text();
       
@@ -122,142 +85,80 @@ export class RiskMonitorAgent {
           detectedAt: new Date(),
         }));
       }
-      
-      return this.getSampleRiskAlerts('Global');
+      return []; // Return empty if AI fails to generate valid JSON
     } catch (error) {
       console.error('AI risk detection error:', error);
-      return this.getSampleRiskAlerts('Global');
-    }
-  }
-
-  private getSampleRiskAlerts(region: string): RiskAlert[] {
-    return demoRiskAlerts.map(alert => ({ ...alert, region }));
-  }
-}
-
-// =================================================================
-// NO CHANGES HERE: All other agents are untouched and remain complete.
-// =================================================================
-export class ImpactSimulatorAgent {
-  private model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
-
-  async simulateDisruption(alerts: RiskAlert[], currentRoute: RouteInfo): Promise<SimulationResult> {
-    // Limit data to reduce prompt size
-    const limitedAlerts = alerts.slice(0, 2).map(a => ({
-      type: a.type,
-      severity: a.severity,
-      region: a.region,
-      impact: a.impact
-    }));
-
-    const prompt = `
-    You are a supply chain impact simulation AI agent. Calculate the impact of these risk alerts on a shipping route.
-    
-    Current Route: ${JSON.stringify(currentRoute, null, 2)}
-    Risk Alerts: ${JSON.stringify(limitedAlerts)}
-    
-    Return JSON object with:
-    {
-      "disruptionImpact": { "delayDays": 0, "additionalCost": 0, "affectedShipments": 0, "riskLevel": "low" },
-      "alternatives": [ { "origin": "", "transit": [], "destination": "", "distance": 0, "duration": 0, "cost": 0, "recommendation": "", "pros": [], "cons": [], "riskReduction": 0 } ]
-    }`;
-
-    try {
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const simulation = JSON.parse(jsonMatch[0]);
-        return {
-          originalRoute: currentRoute,
-          ...simulation
-        };
+      // Fallback to a simple, data-driven alert if AI fails
+      const shipments = await Shipment.find({ userId, status: { $in: ['Delayed', 'Stuck'] } });
+      if (shipments.length > 0) {
+          return [{
+              id: `fallback_${Date.now()}`, type: 'logistics_risk', severity: 'high', region: 'Global',
+              title: 'Shipment Delays Detected', description: `${shipments.length} shipments are delayed or stuck.`,
+              impact: 'Potential delivery delays.', affectedShipments: shipments.map(s => s._id.toString()),
+              affectedProducts: [], detectedAt: new Date(), sources: ['Internal System Monitoring']
+          }];
       }
-      return this.getSampleSimulation(currentRoute);
-    } catch (error) {
-      console.error('Simulation error:', error);
-      return this.getSampleSimulation(currentRoute);
+      return [];
     }
-  }
-
-  private getSampleSimulation(originalRoute: RouteInfo): SimulationResult {
-    // (Sample data remains the same)
-    return {
-        originalRoute,
-        disruptionImpact: {
-          delayDays: 12,
-          additionalCost: 185000,
-          affectedShipments: 24,
-          riskLevel: 'high'
-        },
-        alternatives: [
-          {
-            origin: 'Shanghai, China',
-            transit: ['Cape of Good Hope'],
-            destination: 'Rotterdam, Netherlands',
-            distance: 16800,
-            duration: 35,
-            cost: 485000,
-            recommendation: 'Cape Route - Longer but safer',
-            pros: ['Avoids conflict zones'],
-            cons: ['Longer transit', 'Higher cost'],
-            riskReduction: 85
-          }
-        ]
-      };
   }
 }
 
+/**
+ * Agent 2: Impact Simulator
+ * Simulates impact on a user's actual supply chain.
+ */
+export class ImpactSimulatorAgent {
+    private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    async simulateImpact(userId: string, risks: RiskAlert[]): Promise<SimulationResult> {
+        // This agent can be enhanced to use live data as well, but for now, we use the main branch logic.
+        // It's a placeholder for a more complex simulation.
+        return {
+            originalRoute: { origin: 'Multiple', transit: [], destination: 'Multiple', distance: 0, duration: 25, cost: 500000 },
+            disruptionImpact: { delayDays: 7, additionalCost: 75000, affectedShipments: risks.flatMap(r => r.affectedShipments).length, riskLevel: 'high' },
+            alternatives: []
+        };
+    }
+}
+
+/**
+ * Agent 3: Strategy Recommender
+ * Provides recommendations based on the detected risks.
+ */
 export class StrategyRecommenderAgent {
-  private model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    private model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-  async generateStrategies(alerts: RiskAlert[], simulation: SimulationResult): Promise<StrategyRecommendation> {
-    // Limit data to reduce prompt size
-    const limitedAlerts = alerts.slice(0, 2).map(a => ({
-      type: a.type,
-      severity: a.severity,
-      impact: a.impact
-    }));
-
-    const prompt = `
-    You are a strategic supply chain AI agent. Based on these risk alerts and simulation results, provide actionable recommendations.
-    
-    Risk Alerts: ${JSON.stringify(limitedAlerts)}
-    Simulation: ${JSON.stringify(simulation.disruptionImpact)}
-    
-    Generate strategic recommendations in JSON format:
-    {
-      "immediate": [],
-      "shortTerm": [], 
-      "longTerm": [],
-      "contingencyPlans": []
-    }`;
-
-    try {
-        const result = await this.model.generateContent(prompt);
-        const response = result.response.text();
-        const jsonMatch = response.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]);
+    async generateRecommendations(risks: RiskAlert[]): Promise<StrategyRecommendation> {
+       const prompt = `
+        Given these supply chain risks: ${JSON.stringify(risks)}, generate strategic recommendations.
+        Return JSON: { "immediate": [], "shortTerm": [], "longTerm": [], "contingencyPlans": [] }
+       `;
+        try {
+            const result = await this.model.generateContent(prompt);
+            const response = result.response.text();
+            const jsonMatch = response.match(/\{[\s\S]*\}/);
+            if (jsonMatch) return JSON.parse(jsonMatch[0]);
+            return this.getSampleStrategies();
+        } catch (error) {
+            console.error('Strategy generation error:', error);
+            return this.getSampleStrategies();
         }
-        return this.getSampleStrategies();
-    } catch (error) {
-        console.error('Strategy generation error:', error);
-        return this.getSampleStrategies();
     }
-  }
 
-  private getSampleStrategies(): StrategyRecommendation {
-    // (Sample data remains the same)
-    return {
-        immediate: ['Contact logistics partners', 'Notify customers'],
-        shortTerm: ['Diversify shipping routes'],
-        longTerm: ['Build supplier diversification'],
-        contingencyPlans: ['Maintain 90-day inventory buffer']
-      };
-  }
+    private getSampleStrategies(): StrategyRecommendation {
+        return {
+            immediate: ['Contact carriers for status updates on delayed shipments.'],
+            shortTerm: ['Explore alternative shipping routes.'],
+            longTerm: ['Diversify supplier base in key regions.'],
+            contingencyPlans: ['Increase safety stock for high-risk products.']
+        };
+    }
 }
 
+/**
+ * Multi-Agent Orchestrator
+ * This is the main controller that combines the power of both branches.
+ */
 export class MultiAgentOrchestrator {
   private riskMonitor: RiskMonitorAgent;
   private impactSimulator: ImpactSimulatorAgent;
@@ -269,108 +170,58 @@ export class MultiAgentOrchestrator {
     this.strategyRecommender = new StrategyRecommenderAgent();
   }
 
-   async analyzeSupplyChain() {
+  async analyzeSupplyChain(userId: string) {
     try {
-      // Direct function calls instead of HTTP request
+      // 1. Fetch live global data
       console.log('Orchestrator: Fetching live global conditions and news...');
-      
       const [conditions, news] = await Promise.all([
         getGlobalConditions(),
-        getSupplyChainNews()
+        getSupplyChainNews(10) // Fetch 10 latest news items
       ]);
 
-      console.log('🤖 Agent 1: Detecting risks from live data...');
-      const risks = await this.riskMonitor.detectRisks(conditions, news);
+      // 2. Run Risk Monitor with both userId (for user data) and live data
+      console.log('🤖 Agent 1: Detecting risks from live and user data...');
+      const risks = await this.riskMonitor.detectRisks(userId, conditions, news);
 
-      const currentRoute: RouteInfo = {
-        origin: 'Shanghai, China',
-        transit: ['Singapore', 'Suez Canal', 'Global'],
-        destination: 'Rotterdam, Netherlands',
-        distance: 11500,
-        duration: 28,
-        cost: 340000
-      };
-      
+      // 3. Run Impact Simulator based on detected risks
       console.log('🤖 Agent 2: Simulating impact...');
-      const simulation = await this.impactSimulator.simulateDisruption(risks, currentRoute);
-
+      const simulation = await this.impactSimulator.simulateImpact(userId, risks);
+      
+      // 4. Run Strategy Recommender based on detected risks
       console.log('🤖 Agent 3: Generating strategies...');
-      const strategies = await this.strategyRecommender.generateStrategies(risks, simulation);
+      const recommendations = await this.strategyRecommender.generateRecommendations(risks);
 
       return {
         risks,
         simulation,
-        strategies,
-        analysisTimestamp: new Date(),
-        companyProfile: {
-          name: 'TechFlow Electronics Ltd',
-          industry: 'Consumer Electronics',
-          primaryMarkets: ['Europe', 'North America'],
-          monthlyShipments: 150,
-          averageOrderValue: 75000
+        recommendations,
+        analysisTimestamp: new Date().toISOString(),
+        summary: {
+          totalRisks: risks.length,
+          highRiskCount: risks.filter(r => r.severity === 'high' || r.severity === 'critical').length,
+          recommendationsCount: recommendations.immediate.length + recommendations.shortTerm.length + recommendations.longTerm.length
         }
       };
     } catch (error) {
-      console.error('Multi-agent analysis error:', error);
+      console.error('Error in multi-agent analysis:', error);
       throw error;
     }
   }
 
-   async analyzeSupplyChainWithData(conditions: GlobalCondition[], news: NewsItem[]) {
+  async runWhatIfSimulation(userId: string, scenario: string) {
     try {
-      // Limit data to reduce prompt size and avoid rate limits
-      const limitedConditions = conditions.slice(0, 3);
-      const limitedNews = news.slice(0, 2);
-      
-      console.log('🤖 Agent 1: Detecting risks from live data...');
-      const risks = await this.riskMonitor.detectRisks(limitedConditions, limitedNews);
-
-      const currentRoute: RouteInfo = {
-        origin: 'Shanghai, China',
-        transit: ['Singapore', 'Suez Canal', 'Global'],
-        destination: 'Rotterdam, Netherlands',
-        distance: 11500,
-        duration: 28,
-        cost: 340000
-      };
-      
-      console.log('🤖 Agent 2: Simulating impact...');
-      const simulation = await this.impactSimulator.simulateDisruption(risks, currentRoute);
-
-      console.log('🤖 Agent 3: Generating strategies...');
-      const strategies = await this.strategyRecommender.generateStrategies(risks, simulation);
-
+      // This can be further enhanced, but uses the main branch's logic for now
+      const simulation = generateWhatIfSimulation(scenario); 
       return {
-        risks,
-        simulation,
-        strategies,
-        analysisTimestamp: new Date(),
-        companyProfile: {
-          name: 'TechFlow Electronics Ltd',
-          industry: 'Consumer Electronics',
-          primaryMarkets: ['Europe', 'North America'],
-          monthlyShipments: 150,
-          averageOrderValue: 75000
-        }
+        scenario,
+        ...simulation
       };
     } catch (error) {
-      console.error('Multi-agent analysis error:', error);
+      console.error('Error in what-if simulation:', error);
       throw error;
-    }
-  }
-
-
-  async runWhatIfSimulation(scenario: string) {
-    // (This function remains untouched)
-    try {
-      const simulation = generateWhatIfSimulation(scenario);
-      if (process.env.GEMINI_API_KEY) {
-        // AI enhancement logic here...
-      }
-      return simulation;
-    } catch (error) {
-      console.error('What-if simulation error:', error);
-      return generateWhatIfSimulation(scenario);
     }
   }
 }
+
+// Export a single instance to be used across the application
+export const multiAgentSystem = new MultiAgentOrchestrator();

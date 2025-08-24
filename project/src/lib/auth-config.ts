@@ -39,9 +39,17 @@ export const authOptions = {
       return true;
     },
 
+    async jwt({ token, user }: { token: any; user: any }) {
+      if (user) {
+        token.id = user._id;
+        token.email = user.email;
+      }
+      return token;
+    },
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async session(params: any) {
-      const { session } = params;
+      const { session, token } = params;
       await connectToDatabase();
 
       const dbUser = await User.findOne({ email: session.user?.email });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { ShipmentWithProduct, Alert } from '@/lib/types';
 import ShipmentTable from '@/components/shipment/ShipmentTable';
 import AlertsSection from '@/components/shipment/AlertsSection';
@@ -51,7 +52,8 @@ export function ShipmentManagement() {
       ]);
 
       if (shipmentsRes.ok) {
-        const shipmentsData = await shipmentsRes.json();
+        const shipmentsResult = await shipmentsRes.json();
+        const shipmentsData = shipmentsResult.success ? shipmentsResult.data : [];
         setShipments(shipmentsData);
         
         // Calculate stats
@@ -126,6 +128,15 @@ export function ShipmentManagement() {
           <p className="text-gray-600 dark:text-gray-400">Track and manage all your shipments in one place</p>
         </div>
         <div className="flex space-x-2">
+          <Button variant="outline" asChild>
+            <Link href="/product-form">Add Product</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/shipment-form">Add Shipment</Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link href="/supplier-form">Add Supplier</Link>
+          </Button>
           <Button variant="outline" onClick={fetchData}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -133,10 +144,6 @@ export function ShipmentManagement() {
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Export
-          </Button>
-          <Button onClick={() => setShowAddForm(!showAddForm)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Shipment
           </Button>
         </div>
       </div>
@@ -312,7 +319,7 @@ export function ShipmentManagement() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Value:</span>
-                          <span className="font-medium">{formatCurrency(shipment?.totalValue || 0)}</span>
+                          <span className="font-medium">{formatCurrency(shipment.totalValue || 0)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-600 dark:text-gray-400">Expected:</span>
