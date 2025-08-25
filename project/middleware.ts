@@ -8,6 +8,8 @@ const protectedRoutes = [
   '/admin-dashboard',
   '/ai-dashboard',
   '/profile',
+  '/business-details',
+  '/company',
   '/api/shipments',
   '/api/products',
   '/api/suppliers',
@@ -21,7 +23,8 @@ const protectedRoutes = [
   '/api/supply-chain',
   '/api/seed',
   '/api/test-auth',
-  '/api/debug-user'
+  '/api/debug-user',
+  '/api/company'
 ];
 
 // Routes that are always public

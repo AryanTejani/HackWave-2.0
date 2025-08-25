@@ -30,7 +30,7 @@ export function LoginForm() {
       password,
     })
     if (result?.ok) {
-      router.push("/converter") 
+      router.push("/admin-dashboard") 
       console.error("Login failed")
     }
   }
@@ -81,7 +81,7 @@ export function LoginForm() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signIn("google", { callbackUrl: "/profile" })}
+            onClick={() => signIn("google", { callbackUrl: "/business-details" })}
           >
             <FcGoogle className="h-8 w-8" />
             Login with Google
@@ -90,7 +90,7 @@ export function LoginForm() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => signIn("github", { callbackUrl: "/profile" })}
+            onClick={() => signIn("github", { callbackUrl: "/business-details" })}
           >
             <FaGithub className="h-8 w-8" />
             Login with Github
