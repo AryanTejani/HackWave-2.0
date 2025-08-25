@@ -17,7 +17,28 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { exportAnalyticsToExcel } from '@/lib/analytics-export'; // Assuming this utility exists from the main branch
-
+import { 
+  LineChart, 
+  Line, 
+  AreaChart, 
+  Area, 
+  BarChart, 
+  Bar, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Legend,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar
+} from 'recharts';
 // This is the comprehensive data structure from the 'main' branch
 interface AnalyticsData {
   keyMetrics: {
@@ -69,6 +90,7 @@ interface AnalyticsData {
   timeRange: string;
 }
 
+
 export function Analytics() {
   const [timeRange, setTimeRange] = useState('30d');
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null);
@@ -76,6 +98,50 @@ export function Analytics() {
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
 
+  const mockChartData = {
+    monthlyPerformance: [
+      { month: 'Jan', onTime: 85, delayed: 15, total: 100 },
+      { month: 'Feb', onTime: 78, delayed: 22, total: 100 },
+      { month: 'Mar', onTime: 92, delayed: 8, total: 100 },
+      { month: 'Apr', onTime: 88, delayed: 12, total: 100 },
+      { month: 'May', onTime: 95, delayed: 5, total: 100 },
+      { month: 'Jun', onTime: 91, delayed: 9, total: 100 },
+    ],
+    revenueTrends: [
+      { month: 'Jan', revenue: 125000, shipments: 45, costs: 85000 },
+      { month: 'Feb', revenue: 138000, shipments: 52, costs: 92000 },
+      { month: 'Mar', revenue: 142000, shipments: 48, costs: 88000 },
+      { month: 'Apr', revenue: 156000, shipments: 55, costs: 95000 },
+      { month: 'May', revenue: 168000, shipments: 58, costs: 102000 },
+      { month: 'Jun', revenue: 175000, shipments: 62, costs: 108000 },
+    ],
+    shippingMethods: [
+      { method: 'Air Freight', onTime: 75, delayed: 20, stuck: 5, value: 45 },
+      { method: 'Sea Freight', onTime: 60, delayed: 30, stuck: 10, value: 30 },
+      { method: 'Land Transport', onTime: 85, delayed: 12, stuck: 3, value: 25 },
+    ],
+    geographicPerformance: [
+      { region: 'Asia Pacific', onTime: 82, delayed: 15, stuck: 3, value: 40 },
+      { region: 'Europe', onTime: 88, delayed: 10, stuck: 2, value: 35 },
+      { region: 'North America', onTime: 91, delayed: 7, stuck: 2, value: 25 },
+      { region: 'Latin America', onTime: 78, delayed: 18, stuck: 4, value: 20 },
+      { region: 'Africa', onTime: 75, delayed: 20, stuck: 5, value: 15 },
+    ],
+    supplierPerformance: [
+      { name: 'Supplier A', rating: 4.8, onTime: 92, leadTime: 12, risk: 'Low' },
+      { name: 'Supplier B', rating: 4.5, onTime: 88, leadTime: 15, risk: 'Medium' },
+      { name: 'Supplier C', rating: 4.9, onTime: 95, leadTime: 10, risk: 'Low' },
+      { name: 'Supplier D', rating: 4.2, onTime: 82, leadTime: 18, risk: 'High' },
+      { name: 'Supplier E', rating: 4.7, onTime: 90, leadTime: 14, risk: 'Medium' },
+    ],
+    riskDistribution: [
+      { category: 'Geopolitical', value: 35, color: '#ef4444' },
+      { category: 'Weather', value: 25, color: '#f97316' },
+      { category: 'Regulatory', value: 20, color: '#eab308' },
+      { category: 'Operational', value: 15, color: '#10b981' },
+      { category: 'Financial', value: 5, color: '#3b82f6' },
+    ]
+  };
   useEffect(() => {
     fetchAnalytics();
   }, [timeRange]);
@@ -266,50 +332,70 @@ export function Analytics() {
                 <CardDescription>On-time delivery rates by month</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 dark:text-gray-400">Performance chart</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500">Interactive chart coming soon</p>
-                  </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={mockChartData.monthlyPerformance}>
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis dataKey="month" className="text-sm text-gray-600" />
+                      <YAxis className="text-sm text-gray-600" />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="onTime" 
+                        stackId="1" 
+                        stroke="#10b981" 
+                        fill="#10b981" 
+                        fillOpacity={0.8}
+                        name="On Time"
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="delayed" 
+                        stackId="1" 
+                        stroke="#ef4444" 
+                        fill="#ef4444" 
+                        fillOpacity={0.8}
+                        name="Delayed"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Cost Analysis</CardTitle>
-                <CardDescription>Shipping costs and efficiency metrics</CardDescription>
+                <CardTitle>Shipping Method Performance</CardTitle>
+                <CardDescription>On-time rates by shipping method</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Air Freight</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div className="bg-blue-600 h-2 rounded-full" style={{ width: '75%' }}></div>
-                      </div>
-                      <span className="text-sm font-medium">75%</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Sea Freight</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div className="bg-green-600 h-2 rounded-full" style={{ width: '60%' }}></div>
-                      </div>
-                      <span className="text-sm font-medium">60%</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Land Transport</span>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-32 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                        <div className="bg-orange-600 h-2 rounded-full" style={{ width: '85%' }}></div>
-                      </div>
-                      <span className="text-sm font-medium">85%</span>
-                    </div>
-                  </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={mockChartData.shippingMethods} layout="horizontal">
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis type="number" className="text-sm text-gray-600" />
+                      <YAxis dataKey="method" type="category" className="text-sm text-gray-600" />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="onTime" fill="#10b981" name="On Time" />
+                      <Bar dataKey="delayed" fill="#f97316" name="Delayed" />
+                      <Bar dataKey="stuck" fill="#ef4444" name="Stuck" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
               </CardContent>
             </Card>
@@ -317,73 +403,268 @@ export function Analytics() {
         </TabsContent>
         
         <TabsContent value="trends" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Trend Analysis</CardTitle>
-              <CardDescription>Key trends and patterns in supply chain performance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400">Trend analysis chart</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500">Interactive trend visualization coming soon</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Revenue Trends</CardTitle>
+                <CardDescription>Monthly revenue and shipment trends</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={mockChartData.revenueTrends}>
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis dataKey="month" className="text-sm text-gray-600" />
+                      <YAxis className="text-sm text-gray-600" />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                        formatter={(value, name) => [
+                          name === 'revenue' ? `$${value.toLocaleString()}` : value,
+                          name === 'revenue' ? 'Revenue' : name === 'shipments' ? 'Shipments' : 'Costs'
+                        ]}
+                      />
+                      <Legend />
+                      <Line 
+                        type="monotone" 
+                        dataKey="revenue" 
+                        stroke="#10b981" 
+                        strokeWidth={3}
+                        name="Revenue"
+                        dot={{ fill: '#10b981', strokeWidth: 2, r: 6 }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="shipments" 
+                        stroke="#3b82f6" 
+                        strokeWidth={2}
+                        name="Shipments"
+                        dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Risk Distribution</CardTitle>
+                <CardDescription>Supply chain risk categories breakdown</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={mockChartData.riskDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={100}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
+                        {mockChartData.riskDistribution.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                        formatter={(value, name) => [`${value}%`, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {mockChartData.riskDistribution.map((risk, index) => (
+                    <div key={index} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: risk.color }}
+                        />
+                        <span className="text-gray-700 dark:text-gray-300">{risk.category}</span>
+                      </div>
+                      <span className="font-medium text-gray-900 dark:text-white">{risk.value}%</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
         
         <TabsContent value="geography" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Geographic Performance</CardTitle>
-              <CardDescription>Performance metrics by region and route</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600 dark:text-gray-400">Geographic analysis</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500">Interactive map and regional data coming soon</p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Regional Performance</CardTitle>
+                <CardDescription>On-time rates by geographic region</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={mockChartData.geographicPerformance} layout="horizontal">
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis type="number" className="text-sm text-gray-600" />
+                      <YAxis dataKey="region" type="category" className="text-sm text-gray-600" />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="onTime" fill="#10b981" name="On Time" />
+                      <Bar dataKey="delayed" fill="#f97316" name="Delayed" />
+                      <Bar dataKey="stuck" fill="#ef4444" name="Stuck" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Regional Value Distribution</CardTitle>
+                <CardDescription>Shipment value by region (percentage)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={mockChartData.geographicPerformance}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                        nameKey="region"
+                      >
+                        {mockChartData.geographicPerformance.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={['#10b981', '#3b82f6', '#f97316', '#ef4444', '#8b5cf6'][index % 5]} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                        formatter={(value, name) => [`${value}%`, name]}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
         
-        <TabsContent value="suppliers" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Supplier Performance</CardTitle>
-              <CardDescription>Supplier metrics and performance analysis</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">4.8</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Avg Rating</div>
+                <TabsContent value="suppliers" className="mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Supplier Performance Overview</CardTitle>
+                <CardDescription>Key metrics and performance indicators</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">4.8</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Avg Rating</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">92%</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">On-Time Rate</div>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                      <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">15</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Active Suppliers</div>
+                    </div>
                   </div>
-                  <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">92%</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">On-Time Rate</div>
-                  </div>
-                  <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                    <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">15</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Active Suppliers</div>
+                  
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={mockChartData.supplierPerformance} layout="horizontal">
+                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                        <XAxis type="number" className="text-sm text-gray-600" />
+                        <YAxis dataKey="name" type="category" className="text-sm text-gray-600" />
+                        <Tooltip 
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--background))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                          }}
+                        />
+                        <Legend />
+                        <Bar dataKey="rating" fill="#3b82f6" name="Rating" />
+                        <Bar dataKey="onTime" fill="#10b981" name="On-Time %" />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
-                <div className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-600 dark:text-gray-400">Supplier performance chart</p>
-                    <p className="text-sm text-gray-500 dark:text-gray-500">Detailed supplier analytics coming soon</p>
-                  </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Supplier Risk & Lead Time Analysis</CardTitle>
+                <CardDescription>Risk levels and lead time performance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={mockChartData.supplierPerformance}>
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="name" />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} />
+                      <Radar
+                        name="On-Time Rate"
+                        dataKey="onTime"
+                        stroke="#10b981"
+                        fill="#10b981"
+                        fillOpacity={0.3}
+                      />
+                      <Radar
+                        name="Lead Time (days)"
+                        dataKey="leadTime"
+                        stroke="#f97316"
+                        fill="#f97316"
+                        fillOpacity={0.3}
+                      />
+                      <Tooltip 
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--background))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        }}
+                      />
+                      <Legend />
+                    </RadarChart>
+                  </ResponsiveContainer>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

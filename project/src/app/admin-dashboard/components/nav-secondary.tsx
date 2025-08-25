@@ -14,9 +14,10 @@ interface NavSecondaryProps {
   className?: string;
   activeSection?: DashboardSection;
   onSectionChange?: (section: DashboardSection) => void;
+  isCollapsed?: boolean;
 }
 
-export function NavSecondary({ items, className, activeSection, onSectionChange }: NavSecondaryProps) {
+export function NavSecondary({ items, className, activeSection, onSectionChange, isCollapsed }: NavSecondaryProps) {
   return (
     <SidebarMenu className={className}>
       {items.map((item, index) => (
@@ -24,27 +25,41 @@ export function NavSecondary({ items, className, activeSection, onSectionChange 
           <SidebarMenuButton
             asChild
             isActive={activeSection === item.section}
-            className="data-[slot=sidebar-menu-button]:!p-3"
+            className={`data-[slot=sidebar-menu-button]:!p-3 ${isCollapsed ? 'justify-center' : ''}`}
           >
             {item.section ? (
               <button
                 onClick={() => onSectionChange?.(item.section!)}
-                className="w-full text-left flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className={`w-full text-left flex items-center rounded-lg transition-all duration-200 group ${
+                  isCollapsed 
+                    ? 'p-2 justify-center hover:bg-gray-50 dark:hover:bg-gray-800' 
+                    : 'p-3 space-x-3 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+                title={isCollapsed ? item.title : undefined}
               >
-                <item.icon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {item.title}
-                </span>
+                <item.icon className="h-5 w-5 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                {!isCollapsed && (
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {item.title}
+                  </span>
+                )}
               </button>
             ) : (
               <a
                 href={item.url}
-                className="w-full text-left flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className={`w-full text-left flex items-center rounded-lg transition-all duration-200 group ${
+                  isCollapsed 
+                    ? 'p-2 justify-center hover:bg-gray-50 dark:hover:bg-gray-800' 
+                    : 'p-3 space-x-3 hover:bg-gray-100 dark:hover:bg-gray-800'
+                }`}
+                title={isCollapsed ? item.title : undefined}
               >
-                <item.icon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {item.title}
-                </span>
+                <item.icon className="h-5 w-5 text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300" />
+                {!isCollapsed && (
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {item.title}
+                  </span>
+                )}
               </a>
             )}
           </SidebarMenuButton>

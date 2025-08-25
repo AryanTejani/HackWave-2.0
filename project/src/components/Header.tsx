@@ -17,6 +17,7 @@ const navigation = [
   { name: "Home", href: "/" },
   { name: "Admin", href: "/admin-dashboard" },
   { name: "Documentation", href: "/docs" },
+  { name: "Company", href: "/company" },
 ];
 
 const satisfy = Satisfy({
@@ -88,7 +89,7 @@ const Header = () => {
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
             <p className={`${satisfy.className} text-gray-800 text-2xl text-center drop-shadow-md dark:text-gray-50`}>
-              Hackwave_
+              ChainGaurd
             </p>
           </Link>
 

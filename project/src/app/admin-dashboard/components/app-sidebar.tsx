@@ -3,22 +3,26 @@
 import * as React from "react";
 import Link from "next/link";
 import {
-  IconDashboard,
-  IconTruck,
-  IconBrain,
-  IconAlertTriangle,
-  IconPackage,
-  IconChartBar,
-  IconSettings,
-  IconSearch,
-  IconHelp,
-  IconInnerShadowTop,
-  IconUsers,
-  IconDatabase,
-  IconReport,
-  IconFileAi,
-  IconMap
-} from "@tabler/icons-react";
+  LayoutDashboard,
+  Truck,
+  Brain,
+  AlertTriangle,
+  Package,
+  BarChart3,
+  Settings,
+  Search,
+  HelpCircle,
+  Cloud,
+  Users,
+  Database,
+  FileText,
+  MapIcon,
+  ChevronLeft,
+  ChevronRight,
+  Building2,
+  Warehouse,
+  Store
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -45,49 +49,49 @@ const data = {
     {
       title: "Dashboard Overview",
       section: "overview" as DashboardSection,
-      icon: IconDashboard,
+      icon: LayoutDashboard,
       description: "Key metrics and insights"
     },
     {
       title: "Live Data",
       section: "live-data" as DashboardSection,
-      icon: IconDatabase,
+      icon: Database,
       description: "View and download uploaded data"
     },
     {
       title: "Shipment Management",
       section: "shipments" as DashboardSection,
-      icon: IconTruck,
+      icon: Truck,
       description: "Track and manage shipments"
     },
     {
       title: "AI Intelligence",
       section: "ai-intelligence" as DashboardSection,
-      icon: IconBrain,
+      icon: Brain,
       description: "AI-powered analysis and simulations"
     },
     {
       title: "Risk Management",
       section: "risk-management" as DashboardSection,
-      icon: IconAlertTriangle,
+      icon: AlertTriangle,
       description: "Monitor and manage risks"
     },
     {
       title: "Product Management",
       section: "products" as DashboardSection,
-      icon: IconPackage,
+      icon: Package,
       description: "Manage products and suppliers"
     },
     {
       title: "Analytics & Reports",
       section: "analytics" as DashboardSection,
-      icon: IconChartBar,
+      icon: BarChart3,
       description: "Advanced analytics and reporting"
     },
     {
       title: "Map",
       section: "map" as DashboardSection,
-      icon: IconMap,
+      icon: MapIcon,
       description: "Map of the world"
     }
   ],
@@ -95,17 +99,17 @@ const data = {
     {
       title: "Settings",
       section: "settings" as DashboardSection,
-      icon: IconSettings
+      icon: Settings
     },
     {
       title: "Search",
       url: "#",
-      icon: IconSearch
+      icon: Search
     },
     {
       title: "Help & Support",
       url: "#",
-      icon: IconHelp
+      icon: HelpCircle
     }
   ]
 };
@@ -116,35 +120,91 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ activeSection, onSectionChange, ...props }: AppSidebarProps) {
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
+
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
   return (
-    <Sidebar collapsible="none" className="h-screen border-r border-gray-200 dark:border-gray-700" {...props}>
-      <SidebarHeader className="border-b border-gray-200 dark:border-gray-700">
+    <Sidebar 
+      collapsible={isCollapsed ? "icon" : "none"} 
+      className={`h-screen border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ${
+        isCollapsed ? 'w-16' : 'w-64'
+      }`} 
+      {...props}
+    >
+      {/* <SidebarHeader className="border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-1.5">
-              <Link href="#">
-                <IconInnerShadowTop className="!size-5 text-blue-600 dark:text-blue-400" />
-                <span className="text-base font-semibold text-gray-900 dark:text-white">HackWave Supply Chain</span>
+            <SidebarMenuButton asChild className="data-[slot=sidebar-menu-button]:!p-3">
+              <Link href="#" className="flex items-center gap-3 group">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg group-hover:shadow-xl transition-all duration-200">
+                  <Cloud className="h-5 w-5 text-white" />
+                </div>
+                {!isCollapsed && (
+                  <div className="flex flex-col">
+                    <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                      HackWave
+                    </span>
+                    <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                      Supply Chain
+                    </span>
+                  </div>
+                )}
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
+      </SidebarHeader> */}
+      
+      <SidebarContent className="flex-1 py-4">
+        <div className="px-3 mb-6">
+          {!isCollapsed && (
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Main Navigation
+            </h3>
+          )}
+        </div>
         <NavMain 
           items={data.navMain} 
           activeSection={activeSection}
           onSectionChange={onSectionChange}
+          isCollapsed={isCollapsed}
         />
+        
+        <div className="px-3 mt-8 mb-4">
+          {!isCollapsed && (
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+              Tools & Support
+            </h3>
+          )}
+        </div>
         <NavSecondary 
           items={data.navSecondary} 
-          className="mt-auto"
+          className="mb-4"
           activeSection={activeSection}
           onSectionChange={onSectionChange}
+          isCollapsed={isCollapsed}
         />
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser user={data.user} />
+      
+      <SidebarFooter className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <NavUser user={data.user} isCollapsed={isCollapsed} />
+        
+        {/* Collapse Toggle Button */}
+        <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+          <button
+            onClick={toggleSidebar}
+            className="w-full h-10 flex items-center justify-center rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 group"
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-4 w-4 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+            ) : (
+              <ChevronLeft className="h-4 w-4 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+            )}
+          </button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
