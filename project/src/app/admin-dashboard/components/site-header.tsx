@@ -10,7 +10,7 @@ export function SiteHeader() {
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <h1 className="text-base font-medium">Shipment Management</h1>
      <div className="flex items-center justify-end">
-      <Link href="/admin-dashboard/upload-data">
+      <Link href="/admin-dashboard/data-onboarding">
       <Button className="">
         <Upload className="w-4 h-4" />
         Upload data
