@@ -249,13 +249,14 @@ export function LiveData({ initialDataType }: LiveDataProps) {
 
              {/* Tabs for different data types */}
        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-         <TabsList className="grid w-full grid-cols-6">
+         <TabsList className="grid w-full grid-cols-7">
            <TabsTrigger value="overview">Overview</TabsTrigger>
            <TabsTrigger value="products">Products</TabsTrigger>
            <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
            <TabsTrigger value="shipments">Shipments</TabsTrigger>
            <TabsTrigger value="factories">Factories</TabsTrigger>
            <TabsTrigger value="warehouses">Warehouses</TabsTrigger>
+           <TabsTrigger value="retailers">Retailers</TabsTrigger>
          </TabsList>
 
         {/* Overview Tab */}
@@ -520,19 +521,23 @@ export function LiveData({ initialDataType }: LiveDataProps) {
                <Table>
                  <TableHeader>
                    <TableRow>
-                     <TableHead>Name</TableHead>
+                     <TableHead>Factory ID</TableHead>
+                     <TableHead>Factory Name</TableHead>
                      <TableHead>Location</TableHead>
                      <TableHead>Capacity</TableHead>
-                     <TableHead>Efficiency</TableHead>
+                     <TableHead>Utilization</TableHead>
+                     <TableHead>Quality Rating</TableHead>
                    </TableRow>
                  </TableHeader>
                  <TableBody>
                    {liveData.recentData.factories.map((factory, index) => (
                      <TableRow key={index}>
-                       <TableCell className="font-medium">{factory.name}</TableCell>
-                       <TableCell>{factory.location}</TableCell>
-                       <TableCell>{factory.capacity}</TableCell>
-                       <TableCell>{(factory.efficiency * 100).toFixed(1)}%</TableCell>
+                       <TableCell className="font-medium">{factory.Factory_ID}</TableCell>
+                       <TableCell>{factory.Factory_Name}</TableCell>
+                       <TableCell>{factory.Location}</TableCell>
+                       <TableCell>{factory.Capacity?.toLocaleString()}</TableCell>
+                       <TableCell>{factory.Utilization?.toFixed(1)}%</TableCell>
+                       <TableCell>{factory.Quality_Rating?.toFixed(1)}/5</TableCell>
                      </TableRow>
                    ))}
                  </TableBody>
@@ -559,19 +564,64 @@ export function LiveData({ initialDataType }: LiveDataProps) {
                <Table>
                  <TableHeader>
                    <TableRow>
-                     <TableHead>Name</TableHead>
+                     <TableHead>Warehouse ID</TableHead>
+                     <TableHead>Warehouse Name</TableHead>
                      <TableHead>Location</TableHead>
                      <TableHead>Capacity</TableHead>
-                     <TableHead>Utilization</TableHead>
+                     <TableHead>Current Stock</TableHead>
+                     <TableHead>Storage Cost</TableHead>
                    </TableRow>
                  </TableHeader>
                  <TableBody>
                    {liveData.recentData.warehouses.map((warehouse, index) => (
                      <TableRow key={index}>
-                       <TableCell className="font-medium">{warehouse.name}</TableCell>
-                       <TableCell>{warehouse.location}</TableCell>
-                       <TableCell>{warehouse.capacity}</TableCell>
-                       <TableCell>{(warehouse.utilization * 100).toFixed(1)}%</TableCell>
+                       <TableCell className="font-medium">{warehouse.Warehouse_ID}</TableCell>
+                       <TableCell>{warehouse.Warehouse_Name}</TableCell>
+                       <TableCell>{warehouse.Location}</TableCell>
+                       <TableCell>{warehouse.Capacity?.toLocaleString()}</TableCell>
+                       <TableCell>{warehouse.Current_Stock?.toLocaleString()}</TableCell>
+                       <TableCell>${warehouse.Storage_Cost?.toFixed(2)}</TableCell>
+                     </TableRow>
+                   ))}
+                 </TableBody>
+               </Table>
+             </CardContent>
+           </Card>
+         </TabsContent>
+
+         {/* Retailers Tab */}
+         <TabsContent value="retailers" className="space-y-4">
+           <div className="flex items-center justify-between">
+             <h3 className="text-lg font-semibold">Recent Retailers</h3>
+             <Button 
+               onClick={() => downloadDataAsExcel('retailers', liveData.recentData.retailers)}
+               variant="outline"
+               size="sm"
+             >
+               <Download className="h-4 w-4 mr-2" />
+               Download CSV
+             </Button>
+           </div>
+           <Card>
+             <CardContent className="p-0">
+               <Table>
+                 <TableHeader>
+                   <TableRow>
+                     <TableHead>Retailer ID</TableHead>
+                     <TableHead>Retailer Name</TableHead>
+                     <TableHead>Location</TableHead>
+                     <TableHead>Market Segment</TableHead>
+                     <TableHead>Sales Volume</TableHead>
+                   </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                   {liveData.recentData.retailers.map((retailer, index) => (
+                     <TableRow key={index}>
+                       <TableCell className="font-medium">{retailer.Retailer_ID}</TableCell>
+                       <TableCell>{retailer.Retailer_Name}</TableCell>
+                       <TableCell>{retailer.Location}</TableCell>
+                       <TableCell>{retailer.Market_Segment}</TableCell>
+                       <TableCell>${retailer.Sales_Volume?.toLocaleString()}</TableCell>
                      </TableRow>
                    ))}
                  </TableBody>

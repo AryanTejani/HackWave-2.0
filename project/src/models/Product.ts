@@ -42,7 +42,7 @@ const ProductSchema = new Schema<IProduct>(
     },
     origin: {
       type: String,
-      required: [true, 'Product origin is required'],
+      required: false,
       trim: true,
       maxlength: [100, 'Origin cannot exceed 100 characters']
     },

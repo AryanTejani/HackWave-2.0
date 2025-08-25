@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { DataHistory } from './data-history';
+
 interface FileUpload {
   file: File;
   type: string;
@@ -37,7 +37,7 @@ export function DataOnboarding() {
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
   const [overallProgress, setOverallProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
+
 
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
@@ -192,7 +192,7 @@ export function DataOnboarding() {
           );
           
           // Refresh the data history
-          setRefreshKey(prev => prev + 1);
+  
         }, 1000);
       }, 3000);
 
@@ -219,7 +219,7 @@ export function DataOnboarding() {
     });
     
     // Refresh the data history to show latest uploads
-    setRefreshKey(prev => prev + 1);
+    
   };
 
   return (
@@ -421,7 +421,7 @@ export function DataOnboarding() {
          </Card>
        )}
        
-       <DataHistory refreshKey={refreshKey} />
+
      </div>
    );
  }

@@ -70,10 +70,7 @@ export async function mapAndSaveDataWithAI(
       userId: userId
     }));
 
-    // Delete existing data for this user and type
-    await deleteExistingData(userId, dataType);
-
-    // Save new data
+    // Save new data (append to existing data)
     const savedData = await saveData(dataType, dataWithUserId);
 
     console.log(`Successfully mapped and saved ${savedData.length} ${dataType} records`);
@@ -102,7 +99,7 @@ function generateMappingPrompt(dataType: string, jsonData: any[]): string {
         "name": "string (required, max 100 chars) - map from Product Name, Product, Name, or similar",
         "category": "string (required, max 50 chars) - map from Category, Type, Product Category, or similar",
         "supplier": "string (required, max 100 chars) - map from Supplier, Vendor, Manufacturer, or similar",
-        "origin": "string (required, max 100 chars) - map from Origin, Country, Source, or similar",
+        "origin": "string (optional, max 100 chars) - map from Origin, Country of Origin, Source, Made In, Origin Country, or similar",
         "description": "string (required, max 500 chars) - map from Description, Details, or create from name if missing",
         "unitCost": "number (required, min 0) - map from Unit Cost, Price, Cost, Unit Price, or similar",
         "leadTime": "number (required, min 1) - map from Lead Time, Delivery Time, or default to 30",
@@ -120,7 +117,7 @@ function generateMappingPrompt(dataType: string, jsonData: any[]): string {
         "contactPerson": "string (required) - map from Contact, Contact Person, Representative, or default to 'Primary Contact'",
         "email": "string (required, valid email) - map from Email, Contact Email, or generate if missing",
         "phone": "string (required) - map from Phone, Contact Phone, or default to 'N/A'",
-        "rating": "number (required, 0-5) - map from Rating, Score, or default to 4.0",
+        "rating": "number (optional, 0-5) - map from Rating, Score, Supplier Rating, or default to 4.0",
         "status": "string (enum: 'active', 'inactive', 'pending') - map from Status or default to 'active'",
         "riskLevel": "string (enum: 'low', 'medium', 'high') - map from Risk Level, Risk, or default to 'medium'",
         "certifications": "array of strings (optional) - map from Certifications, Cert, or empty array",
@@ -184,36 +181,28 @@ function generateMappingPrompt(dataType: string, jsonData: any[]): string {
 
   const schema = schemaDefinitions[dataType as keyof typeof schemaDefinitions];
   
-  return `You are an expert data mapper for supply chain management systems. Your task is to transform raw Excel data into clean, structured JSON that matches our database schema.
+  return `You are an expert data mapping AI for a supply chain management platform. Your task is to analyze raw JSON data from a user's uploaded file and map it to our strict database schema.
 
-Raw data to map:
-${JSON.stringify(sampleData, null, 2)}
+**Instructions:**
+1. **Analyze the User's Data:** Understand the structure and headers of the user's JSON array.
+2. **Map to the Target Schema:** For each object in the user's array, create a new object that perfectly matches the provided Mongoose schema.
+3. **Be Intelligent with Mapping:** User column names will vary. Use your knowledge to map intelligently. For example:
+   * For the **Product** schema's \`origin\` field, look for user columns named "Country of Origin", "Source", "Made In", "Origin Country", "Origin", or "Country".
+   * For the **Supplier** schema's \`rating\` field, look for "Rating", "Score", "Supplier Rating", or "Quality Score". If the value is a string like "4.5 out of 5", extract the number 4.5.
+   * For **Product** schema's \`name\` field, look for "Product Name", "Name", "Product", "Item Name", "Description", or "Title".
+   * For **Supplier** schema's \`name\` field, look for "Supplier Name", "Name", "Company", "Vendor", "Manufacturer", or "Supplier".
+4. **Handle Missing Data Gracefully:** If a non-essential field (like a product's \`origin\` or a supplier's \`rating\`) is missing from the user's data, omit the field entirely from the final JSON object. Do not invent data.
+5. **Smart Defaults:** Only use defaults for truly optional fields. For required fields, try to extract from related data or use sensible business logic.
+6. **Data Type Conversion:** Convert string numbers to actual numbers, handle date strings properly, and ensure arrays are properly formatted.
+7. **Output:** Return ONLY a valid JSON array of the mapped objects. Do not include any explanations, comments, or surrounding text.
 
-Required schema for ${dataType}:
+**Target Schema for '${dataType}':**
 ${schema}
 
-CRITICAL INSTRUCTIONS:
-1. Look at the raw data field names and map them intelligently to the required schema fields
-2. Use the field mapping hints provided in the schema (e.g., "map from Product Name, Product, Name, or similar")
-3. For missing required fields, use sensible defaults as specified in the schema
-4. Convert string numbers to actual numbers (e.g., "100" becomes 100)
-5. Ensure all required fields are present and have valid data types
-6. For Date fields, create proper Date objects (e.g., new Date("2024-01-15")) - NOT ISO strings
-7. For arrays, create empty arrays if no data is available
-8. Generate unique IDs for ID fields if not present in the data
+**Raw data to map:**
+${JSON.stringify(sampleData, null, 2)}
 
-IMPORTANT: The raw data may have different column names than the expected schema. Use intelligent field mapping based on the hints provided.
-IMPORTANT: Date fields must be Date objects, not string representations of dates.
-
-Return ONLY a valid JSON array with the mapped data. Do not include any explanations or markdown formatting.
-
-Example response format:
-[
-  {
-    "field1": "value1",
-    "field2": "value2"
-  }
-]`;
+**CRITICAL:** Process ALL records in the dataset, not just the sample shown above. The sample is for understanding the field structure.`;
 }
 
 function validateMappedData(dataType: string, data: any[]): { isValid: boolean; errors: string[] } {
@@ -245,6 +234,10 @@ function validateMappedData(dataType: string, data: any[]): { isValid: boolean; 
         if (!record.unitCost || typeof record.unitCost !== 'number' || record.unitCost < 0) {
           errors.push(`Record ${index}: Invalid unitCost - expected number >= 0, got ${typeof record.unitCost}: ${record.unitCost}`);
         }
+        // origin is now optional, but if present, validate it's a string
+        if (record.origin !== undefined && typeof record.origin !== 'string') {
+          errors.push(`Record ${index}: Invalid origin - must be a string if provided`);
+        }
         break;
       case 'suppliers':
         if (!record.name || typeof record.name !== 'string') {
@@ -252,6 +245,10 @@ function validateMappedData(dataType: string, data: any[]): { isValid: boolean; 
         }
         if (!record.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(record.email)) {
           errors.push(`Record ${index}: Invalid email format`);
+        }
+        // rating is now optional, but if present, validate it's a number between 0-5
+        if (record.rating !== undefined && (typeof record.rating !== 'number' || record.rating < 0 || record.rating > 5)) {
+          errors.push(`Record ${index}: Invalid rating - must be a number between 0-5 if provided`);
         }
         break;
       case 'factories':
@@ -341,22 +338,7 @@ function validateMappedData(dataType: string, data: any[]): { isValid: boolean; 
   };
 }
 
-async function deleteExistingData(userId: string, dataType: string): Promise<void> {
-  const models = {
-    products: Product,
-    suppliers: Supplier,
-    factories: Factory,
-    warehouses: Warehouse,
-    retailers: Retailer,
-    shipments: Shipment
-  };
 
-  const model = models[dataType as keyof typeof models];
-  if (model) {
-    await model.deleteMany({ userId });
-    console.log(`Deleted existing ${dataType} data for user ${userId}`);
-  }
-}
 
 async function saveData(dataType: string, data: any[]): Promise<any[]> {
   const models = {
@@ -389,7 +371,11 @@ function transformRawDataToSchema(dataType: string, rawData: any[]): any[] {
         transformed.name = record['Product Name'] || record['Name'] || record['Product'] || `Product ${index + 1}`;
         transformed.category = record['Category'] || record['Type'] || 'General';
         transformed.supplier = record['Supplier'] || record['Vendor'] || 'Default Supplier';
-        transformed.origin = record['Origin'] || record['Country'] || 'Unknown';
+        // origin is now optional - only set if found in the data
+        const originValue = record['Origin'] || record['Country of Origin'] || record['Source'] || record['Made In'] || record['Origin Country'] || record['Country'];
+        if (originValue && originValue !== 'Unknown') {
+          transformed.origin = originValue;
+        }
         transformed.description = record['Description'] || `Description for ${transformed.name}`;
         transformed.unitCost = parseFloat(record['Unit Cost'] || record['Price'] || record['Cost'] || '100');
         transformed.leadTime = parseInt(record['Lead Time'] || '30');
@@ -406,7 +392,19 @@ function transformRawDataToSchema(dataType: string, rawData: any[]): any[] {
         transformed.contactPerson = record['Contact'] || record['Contact Person'] || 'Primary Contact';
         transformed.email = record['Email'] || record['Contact Email'] || `${transformed.name.toLowerCase().replace(/\s+/g, '.')}@example.com`;
         transformed.phone = record['Phone'] || record['Contact Phone'] || 'N/A';
-        transformed.rating = parseFloat(record['Rating'] || '4.0');
+        // rating is now optional - only set if found in the data
+        const ratingValue = record['Rating'] || record['Score'] || record['Supplier Rating'] || record['Quality Score'];
+        if (ratingValue) {
+          // Handle string ratings like "4.5 out of 5"
+          if (typeof ratingValue === 'string') {
+            const numericRating = parseFloat(ratingValue.replace(/[^\d.]/g, ''));
+            if (!isNaN(numericRating) && numericRating >= 0 && numericRating <= 5) {
+              transformed.rating = numericRating;
+            }
+          } else if (typeof ratingValue === 'number' && ratingValue >= 0 && ratingValue <= 5) {
+            transformed.rating = ratingValue;
+          }
+        }
         transformed.status = record['Status'] || 'active';
         transformed.riskLevel = record['Risk Level'] || 'medium';
         transformed.certifications = [];
