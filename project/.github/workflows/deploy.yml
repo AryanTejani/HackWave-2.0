@@ -1,0 +1,62 @@
+name: Deploy Next.js to EC2 (PM2)
+
+on:
+  push:
+    branches: [ main ]  # change if your branch is different
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout your repo
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2️⃣ Start SSH agent with your private key
+      - name: Start SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_KEY }}
+
+      # 3️⃣ Add EC2 server to known_hosts (for secure SSH)
+      - name: Add EC2 to known_hosts
+        run: ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+      # 4️⃣ Deploy commands on EC2
+      - name: Deploy
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+          USER: ${{ secrets.EC2_USER }}
+          ENV_PROD: ${{ secrets.ENV_PROD }}
+        run: |
+          ssh ${USER}@${HOST} <<'EOF'
+            set -e
+
+            # Create app directory if it doesn't exist
+            mkdir -p ~/app
+            cd ~/app
+
+            # If repo exists, pull latest changes; otherwise clone
+            if [ -d .git ]; then
+              git fetch --all
+              git reset --hard origin/main
+            else
+              git clone https://github.com/AryanTejani/HackWave-2.0.git .
+            fi
+
+            # Write .env.production if provided
+            if [ -n "$ENV_PROD" ]; then
+              cat > .env.production <<'EEE'
+${ENV_PROD}
+EEE
+            fi
+
+            # Install dependencies & build app
+            npm ci || npm install
+            npm run build
+
+            # Start or restart app with PM2
+            pm2 start npm --name nextapp -- start || pm2 restart nextapp
+            pm2 save
+          EOF
